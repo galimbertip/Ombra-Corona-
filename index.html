@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!-- GPverse — Ombra & Corona — la versione corrente è in js/version.js -->
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#14110f">
+  <meta name="description" content="Ombra & Corona — RTS GPverse in un mondo fantasy dal sapore tolkieniano">
+  <title>Ombra & Corona · GPverse</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div id="selbox" hidden></div>
+  <div id="toast"></div>
+
+  <!-- HUD di gioco -->
+  <div id="hud" hidden>
+    <header id="topbar">
+      <div id="res"></div>
+      <div class="right">
+        <span id="clock">0:00</span>
+        <button class="version-badge" title="Storia delle versioni"></button>
+        <button id="menuBtn" title="Pausa">☰</button>
+      </div>
+    </header>
+    <div id="camBtns">
+      <button id="rotL" title="Ruota (Q)">⟲</button>
+      <button id="rotR" title="Ruota (E)">⟳</button>
+      <button id="zoomIn" title="Avvicina">＋</button>
+      <button id="zoomOut" title="Allontana">－</button>
+      <button id="boxBtn" title="Selezione a riquadro">▢</button>
+    </div>
+    <footer id="bottom">
+      <canvas id="minimap" width="160" height="160"></canvas>
+      <div id="panel"></div>
+    </footer>
+  </div>
+
+  <!-- Schermata iniziale -->
+  <section id="start" class="screen">
+    <div class="card">
+      <p class="brand">GPverse</p>
+      <h1>Ombra <span>&</span> Corona</h1>
+      <p class="tag">Le ere degli Uomini, degli Elfi e dei Nani contro l'Ombra</p>
+      <div class="menu">
+        <button id="play" class="primary">Partita libera</button>
+        <button disabled title="Arriva nella V.0.7.0">Campagna <small>in arrivo · V.0.7.0</small></button>
+        <label>Difficoltà
+          <select id="difficulty">
+            <option value="easy">Facile</option>
+            <option value="normal" selected>Normale</option>
+            <option value="hard">Difficile</option>
+          </select>
+        </label>
+        <button id="historyBtn">Storia delle versioni <span id="newBadge" class="new" hidden>Nuovo!</span></button>
+      </div>
+      <p id="stats"></p>
+      <p class="foot"><button class="version-badge" title="Storia delle versioni"></button> · Uomini di Pietrabianca contro Ombra della Terra Cinerea</p>
+    </div>
+  </section>
+
+  <!-- Pausa -->
+  <section id="pause" class="screen" hidden>
+    <div class="card small">
+      <h2>Pausa</h2>
+      <div class="menu">
+        <button id="resume" class="primary">Riprendi</button>
+        <button id="quit">Torna al menu</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fine partita -->
+  <section id="over" class="screen" hidden>
+    <div class="card small">
+      <h2 id="overTitle"></h2>
+      <p id="overText"></p>
+      <div class="menu">
+        <button id="again" class="primary">Rigioca</button>
+        <button id="toMenu">Menu</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Storia delle versioni -->
+  <dialog id="history">
+    <header><h2>Storia di Ombra & Corona</h2><button id="historyClose">✕</button></header>
+    <div id="historyList"></div>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
