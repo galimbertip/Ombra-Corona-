@@ -1,5 +1,6 @@
-// GPverse — Ombra & Corona — simulazione di gioco (V.0.1.0)
-import { UNITS, BUILDINGS, FACTIONS, START_RES, GATHER_RATE, CARRY_MAX, POP_LIMIT, AGGRO_RANGE, RES } from './config.js';
+// GPverse — Ombra & Corona — simulazione di gioco (aggiornata alla V.0.2.0)
+import { BUILDINGS, FACTIONS, START_RES, GATHER_RATE, CARRY_MAX, POP_LIMIT, AGGRO_RANGE, RES,
+  unitDef, HEROES, HERO_REVIVE, HERO_PER_LEVEL, XP_TABLE, XP_VALUE, XP_RANGE, ERAS } from './config.js';
 import { buildWorld, findPath, hideNode, BASES } from './world.js';
 import { Unit, Building } from './entities.js';
 import * as THREE from '../lib/three.module.js';
@@ -34,12 +35,12 @@ export class Game {
     this.difficulty = difficulty;
     this.time = 0;
     this.over = null;              // 'win' | 'lose'
-    this.listeners = { message: [], over: [], died: [] };
+    this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [] };
     const w = buildWorld(scene, seed);
     this.grid = w.grid; this.nodes = w.nodes; this.ground = w.ground;
     this.units = []; this.buildings = []; this.arrows = [];
     this.players = {};
-    for (const f of Object.keys(FACTIONS)) this.players[f] = { res: { ...START_RES }, popCap: 0 };
+    for (const f of Object.keys(FACTIONS)) this.players[f] = { res: { ...START_RES }, popCap: 0, era: 1, heroData: null };
     if (difficulty === 'hard') this.players.shadow.res = { food: 400, wood: 400, stone: 200, gold: 150 };
 
     // basi iniziali
@@ -112,21 +113,141 @@ export class Game {
     const u = new Unit(type, b.faction, c.x + 0.5, c.z + 0.5);
     this.units.push(u);
     this.scene.add(u.mesh);
+    if (u.isHero) {
+      const hd = this.players[b.faction].heroData;
+      if (hd) { u.xp = hd.xp; this.applyLevel(u, hd.level, true); }
+      this.players[b.faction].heroData = { level: u.level, xp: u.xp, summoned: true };
+      this.msg(b.faction, `${FACTIONS[b.faction].names.hero} è sceso in campo!`);
+    }
     if (b.rally) this.orderMove([u], b.rally.x, b.rally.z);
     return u;
   }
+  // costo e tempo di un elemento in coda (unità, eroe, era)
+  queueInfo(f, type) {
+    const p = this.players[f];
+    if (type === 'era') { const e = ERAS[p.era + 1]; return e ? { cost: e.cost, time: e.time } : null; }
+    if (type === 'hero' && p.heroData) return { cost: HERO_REVIVE.cost, time: HERO_REVIVE.time };
+    const d = unitDef(type, f);
+    return { cost: d.cost, time: d.time };
+  }
+  // perché non si può mettere in coda? (null = si può)
+  trainBlock(b, type) {
+    const p = this.players[b.faction];
+    if (!b.built) return 'Edificio non finito';
+    if (type === 'era') {
+      if (b.type !== 'tc') return 'Solo dal centro';
+      if (!ERAS[p.era + 1]) return 'Era massima raggiunta';
+      if (this.buildings.some(x => x.alive && x.faction === b.faction && x.queue.some(q => q.type === 'era'))) return 'Avanzamento già in corso';
+      return null;
+    }
+    if (!BUILDINGS[b.type].trains.includes(type)) return 'Non addestrabile qui';
+    const d = unitDef(type, b.faction);
+    if (p.era < d.era) return `Serve la ${ERAS[d.era].name}`;
+    if (type === 'hero') {
+      if (this.units.some(u => u.alive && u.faction === b.faction && u.isHero)) return 'L\'eroe è già in campo';
+      if (this.buildings.some(x => x.alive && x.faction === b.faction && x.queue.some(q => q.type === 'hero'))) return 'Eroe già in arrivo';
+    }
+    return null;
+  }
   train(b, type) {
-    if (!b.built || !BUILDINGS[b.type].trains.includes(type)) return false;
+    const why = this.trainBlock(b, type);
+    if (why) { this.msg(b.faction, why); return false; }
     if (b.queue.length >= 5) { this.msg(b.faction, 'Coda piena'); return false; }
-    const cost = UNITS[type].cost;
+    const { cost } = this.queueInfo(b.faction, type);
     if (!this.canAfford(b.faction, cost)) { this.msg(b.faction, 'Risorse insufficienti'); return false; }
     this.pay(b.faction, cost);
-    b.queue.push({ type, t: 0 });
+    b.queue.push({ type, t: 0, cost, time: this.queueInfo(b.faction, type).time });
     return true;
   }
   cancelTrain(b) {
     const q = b.queue.pop();
-    if (q) this.refund(b.faction, UNITS[q.type].cost);
+    if (q) this.refund(b.faction, q.cost);
+  }
+
+  // ---- ere ---------------------------------------------------------------
+  advanceEra(f) {
+    const p = this.players[f];
+    p.era++;
+    // il Centro Città diventa più forte a ogni era
+    for (const b of this.buildings) if (b.alive && b.faction === f && b.type === 'tc') { b.maxHp += 150; b.hp += 150; }
+    for (const u of this.units) if (u.alive && u.faction === f && u.isHero) this.checkLevel(u);
+    this.emit('era', f, p.era);
+    if (f !== 'men') this.msg('men', `L'Ombra è entrata nella ${ERAS[p.era].name}`);
+  }
+
+  // ---- eroi --------------------------------------------------------------
+  applyLevel(h, level, silent = false) {
+    const st = HEROES[h.faction];
+    const gained = level - h.level;
+    h.level = level;
+    h.maxHp = st.hp + (level - 1) * HERO_PER_LEVEL.hp;
+    h.attack = st.attack + (level - 1) * HERO_PER_LEVEL.attack;
+    h.hp = Math.min(h.maxHp, h.hp + Math.max(0, gained) * HERO_PER_LEVEL.hp);
+    if (silent) h.hp = h.maxHp;
+    h.levelSprite.userData.draw(level);
+    const hd = this.players[h.faction].heroData;
+    if (hd) { hd.level = level; hd.xp = h.xp; }
+    if (!silent && gained > 0) this.emit('level', h);
+  }
+  maxLevel(f) { return Math.max(1, ERAS[this.players[f].era].heroCap); }
+  checkLevel(h) {
+    let lv = h.level;
+    const cap = this.maxLevel(h.faction);
+    while (lv < cap && lv < XP_TABLE.length - 1 && h.xp >= XP_TABLE[lv + 1]) lv++;
+    if (lv !== h.level) this.applyLevel(h, lv);
+  }
+  giveXp(victim) {
+    const val = XP_VALUE[victim.type] || 10;
+    for (const h of this.units) {
+      if (!h.alive || !h.isHero || h.faction === victim.faction) continue;
+      if (dist(h.x, h.z, victim.x, victim.z) > XP_RANGE) continue;
+      h.xp += val;
+      const hd = this.players[h.faction].heroData; if (hd) hd.xp = h.xp;
+      this.checkLevel(h);
+    }
+  }
+  abilityReady(h, i) {
+    const a = HEROES[h.faction].abilities[i];
+    if (h.level < a.level) return `Sblocco al livello ${a.level}`;
+    if (h.abilityCd[i] > 0) return `Pronta tra ${Math.ceil(h.abilityCd[i])} s`;
+    return null;
+  }
+  enemiesNear(x, z, f, r) { return this.units.filter(u => u.alive && u.faction !== f && dist(u.x, u.z, x, z) <= r); }
+  alliesNear(x, z, f, r) { return this.units.filter(u => u.alive && u.faction === f && dist(u.x, u.z, x, z) <= r); }
+  cast(h, i) {
+    if (!h.alive || this.abilityReady(h, i)) return false;
+    const a = HEROES[h.faction].abilities[i];
+    const lv = h.level;
+    switch (a.id) {
+      case 'cry':
+        this.alliesNear(h.x, h.z, h.faction, 6).forEach(u => { u.buffUntil = this.time + 10; });
+        this.emit('ability', h, a, 6, 0xe0b43a); break;
+      case 'slam': {
+        const foes = this.enemiesNear(h.x, h.z, h.faction, 2.4);
+        if (!foes.length) { this.msg(h.faction, 'Nessun nemico vicino'); return false; }
+        foes.forEach(e => this.damage(e, 35 + lv * 5, h));
+        this.emit('ability', h, a, 2.4, 0xff9a3c); break;
+      }
+      case 'king':
+        this.alliesNear(h.x, h.z, h.faction, 8).forEach(u => { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.6); u.buffUntil = this.time + 10; });
+        this.emit('ability', h, a, 8, 0x7dff7d); break;
+      case 'bolt': {
+        const foes = this.enemiesNear(h.x, h.z, h.faction, 6).sort((p, q) => dist(p.x, p.z, h.x, h.z) - dist(q.x, q.z, h.x, h.z));
+        if (!foes.length) { this.msg(h.faction, 'Nessun nemico a portata'); return false; }
+        this.damage(foes[0], 40 + lv * 6, h);
+        this.emit('ability', h, a, 0.8, 0x9fe8ff, foes[0]); break;
+      }
+      case 'voice':
+        this.enemiesNear(h.x, h.z, h.faction, 5).forEach(u => { u.slowUntil = this.time + 6; });
+        this.emit('ability', h, a, 5, 0xb38cff); break;
+      case 'storm':
+        this.enemiesNear(h.x, h.z, h.faction, 4).forEach(e => this.damage(e, 50 + lv * 4, h));
+        this.alliesNear(h.x, h.z, h.faction, 6).forEach(u => { u.buffUntil = this.time + 8; });
+        this.emit('ability', h, a, 4, 0x6b8cff); break;
+    }
+    h.abilityCd[i] = a.cd;
+    h.swing = 0.4;
+    return true;
   }
 
   // ---- ordini ------------------------------------------------------------
@@ -247,6 +368,12 @@ export class Game {
   kill(e) {
     e.alive = false;
     this.scene.remove(e.mesh);
+    this.giveXp(e);
+    if (e.isHero) {
+      this.players[e.faction].heroData = { level: e.level, xp: e.xp, summoned: true };
+      this.msg(e.faction, `${FACTIONS[e.faction].names.hero} è caduto! Puoi rianimarlo dal centro.`);
+      if (e.faction !== 'men') this.msg('men', `${FACTIONS[e.faction].names.hero} è caduto!`);
+    }
     if (e.kind === 'building') {
       this.grid.release(e.cx, e.cz, e.size, e.size);
       if (e.type === 'tc') {
@@ -271,11 +398,17 @@ export class Game {
     for (const b of this.buildings) {
       if (!b.alive || !b.built || !b.queue.length) continue;
       const q = b.queue[0];
-      const cap = this.popCap(b.faction), pop = this.pop(b.faction);
-      if (pop >= cap) { if (!b._capWarn) { this.msg(b.faction, 'Popolazione al massimo: costruisci case'); b._capWarn = true; } continue; }
+      if (q.type !== 'era') {
+        const cap = this.popCap(b.faction), pop = this.pop(b.faction);
+        if (pop >= cap) { if (!b._capWarn) { this.msg(b.faction, 'Popolazione al massimo: costruisci case'); b._capWarn = true; } continue; }
+      }
       b._capWarn = false;
       q.t += dt;
-      if (q.t >= UNITS[q.type].time) { b.queue.shift(); this.spawnNear(b, q.type); }
+      if (q.t >= q.time) {
+        b.queue.shift();
+        if (q.type === 'era') this.advanceEra(b.faction);
+        else this.spawnNear(b, q.type);
+      }
     }
 
     // il Centro Città scocca frecce sui nemici vicini (come in AoE)
@@ -290,7 +423,7 @@ export class Game {
         const d = Math.hypot(u.x - b.x, u.z - b.z) - b.size / 2;
         if (d < bd) { bd = d; t = u; }
       }
-      if (t) { b.cd = st.arrows.cooldown; this.shoot(b, t, st.arrows.damage); }
+      if (t) { b.cd = st.arrows.cooldown; this.shoot(b, t, st.arrows.damage + (this.players[b.faction].era - 1) * 2); }
     }
     this.updateArrows(dt);
 
@@ -304,17 +437,18 @@ export class Game {
 
   shoot(from, target, damage) {
     const m = new THREE.Mesh(ARROW_GEO, ARROW_MAT);
-    m.position.set(from.x, 2.6, from.z);
+    const y0 = from.kind === 'unit' ? 1.0 : 2.6;
+    m.position.set(from.x, y0, from.z);
     this.scene.add(m);
-    this.arrows.push({ m, from, target, damage, t: 0, sx: from.x, sz: from.z });
+    this.arrows.push({ m, from, target, damage, t: 0, sx: from.x, sz: from.z, y0 });
   }
   updateArrows(dt) {
     for (let i = this.arrows.length - 1; i >= 0; i--) {
       const a = this.arrows[i];
-      a.t += dt * 2.2;
+      a.t += dt * (a.y0 > 2 ? 2.2 : 2.6);
       const tx = a.target.x, tz = a.target.z;
       const k = Math.min(1, a.t);
-      const x = a.sx + (tx - a.sx) * k, z = a.sz + (tz - a.sz) * k, y = 2.6 * (1 - k) + 0.6 * k + Math.sin(k * Math.PI) * 1.2;
+      const x = a.sx + (tx - a.sx) * k, z = a.sz + (tz - a.sz) * k, y = a.y0 * (1 - k) + 0.6 * k + Math.sin(k * Math.PI) * (a.y0 > 2 ? 1.2 : 0.8);
       a.m.lookAt(x, y, z);
       a.m.position.set(x, y, z);
       if (k >= 1) {
@@ -329,7 +463,7 @@ export class Game {
     if (!u.path.length) return true;
     const wp = u.path[0];
     const dx = wp.x - u.x, dz = wp.z - u.z, d = Math.hypot(dx, dz);
-    const step = u.speed * dt;
+    const step = u.speed * (u.slowUntil > this.time ? 0.5 : 1) * dt;
     if (d <= step) { u.x = wp.x; u.z = wp.z; u.path.shift(); }
     else { u.x += (dx / d) * step; u.z += (dz / d) * step; }
     u.face = Math.atan2(dx, dz);
@@ -352,6 +486,10 @@ export class Game {
 
   updateUnit(u, dt) {
     u.cd -= dt; u.moving = false;
+    if (u.isHero) {
+      for (let i = 0; i < u.abilityCd.length; i++) if (u.abilityCd[i] > 0) u.abilityCd[i] -= dt;
+      if (u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + dt * 1.5); // l'eroe si rigenera lentamente
+    }
     switch (u.state) {
       case 'idle':
         if (u.isMilitary) {
@@ -380,7 +518,11 @@ export class Game {
         if (reach(u, t) <= u.range + 0.25) {
           u.path = [];
           u.face = Math.atan2(t.x - u.x, t.z - u.z);
-          if (u.cd <= 0) { u.cd = u.cooldown; u.swing = 0.25; this.damage(t, u.attack, u); }
+          if (u.cd <= 0) {
+            u.cd = u.cooldown; u.swing = 0.25;
+            const atk = u.attack * (u.buffUntil > this.time ? 1.5 : 1);
+            if (u.ranged) this.shoot(u, t, atk); else this.damage(t, atk, u);
+          }
         } else this.approach(u, t, dt);
         break;
       }

@@ -10,6 +10,18 @@ A ogni rilascio aggiorna **entrambi**.
 
 ---
 
+## V.0.2.0 — Ere ed eroi · 2026-11-17
+- Tre ere: Prima, Seconda e Terza Era, con avanzamento dal Centro Città
+- Ogni era rinforza il Centro Città (più punti vita e frecce più forti)
+- Nuove unità: Arciere (Seconda Era, attacca a distanza) e Cavaliere della Marca / Cavaliere di Lupi (Terza Era)
+- Eroi in stile Warcraft III: il Re Ramingo (Uomini) e il Bianco Traditore (Ombra)
+- Gli eroi salgono di livello con l'esperienza: livello massimo 5 nella Seconda Era, 10 nella Terza
+- Tre abilità per eroe (sblocco ai livelli 1, 3 e 6), tasti 1/2/3 o pulsanti
+- L'eroe caduto si rianima dal Centro Città conservando il livello
+- Pulsante 👑 (tasto R) per trovare subito l'eroe
+- IA dell'Ombra: avanza di era, evoca l'eroe, usa le abilità e mescola le unità
+- Annuncio a tutto schermo quando si cambia era
+
 ## V.0.1.0 — Prototipo · 2026-11-15
 - Prima versione giocabile: Uomini di Pietrabianca contro Ombra della Terra Cinerea
 - Mappa 3D low-poly con alberi, cespugli di bacche, cave di pietra e miniere d'oro

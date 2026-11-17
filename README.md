@@ -1,6 +1,6 @@
 # Ombra & Corona · GPverse
 
-**Versione corrente: V.0.1.0 (Prototipo)** · [Storia delle versioni](CHANGELOG.md) · [Documento di design](docs/GDD.md)
+**Versione corrente: V.0.2.0 (Ere ed eroi)** · [Storia delle versioni](CHANGELOG.md) · [Documento di design](docs/GDD.md)
 
 RTS 3D leggero nel browser, in un mondo fantasy dal sapore tolkieniano con nomi originali.
 Il motore viene da *Age of Empires*, gli eroi da *Warcraft III*, i territori e le stagioni da *Northgard*.
@@ -19,12 +19,13 @@ Parte del progetto **GPverse** (restyling 2026 dei classici) e della Sala Giochi
 | Punto di raccolta di un edificio | edificio selezionato + clic destro |
 | Camera | WASD / frecce, Q/E ruota, rotella zoom, minimappa |
 | Costruisci | C casa, F fattoria, B caserma (con contadini selezionati) |
+| Eroe | R seleziona l'eroe, 1 / 2 / 3 abilità |
 | Altro | H centro città, P pausa, Esc annulla |
 
 ### Comandi touch
 - Tap su un'unità per selezionarla, tap sul terreno / risorsa / nemico per darle un ordine
 - Un dito trascina la mappa, due dita zoom e spostamento
-- Pulsante ▢ per la selezione a riquadro, ⟲ ⟳ per ruotare
+- Pulsante ▢ per la selezione a riquadro, ⟲ ⟳ per ruotare, 👑 per trovare l'eroe
 
 ## Struttura
 ```

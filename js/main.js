@@ -4,7 +4,7 @@
 // ============================================================================
 import * as THREE from '../lib/three.module.js';
 import { GAME_TITLE, BRAND, VERSION, HISTORY } from './version.js';
-import { MAP_SIZE, RES, RES_ICON, RES_LABEL, UNITS, BUILDINGS, FACTIONS, NODES } from './config.js';
+import { MAP_SIZE, RES, RES_ICON, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_TABLE } from './config.js';
 import { Game } from './game.js';
 import { AI } from './ai.js';
 import { updateBars } from './entities.js';
@@ -330,6 +330,8 @@ window.addEventListener('keydown', e => {
   if (k === 'escape') { if (placing) cancelPlacing(); else if ($('#history').open) $('#history').close(); else setSelection([]); }
   if (k === 'h') { const tc = game.buildings.find(b => b.faction === PLAYER && b.type === 'tc'); if (tc) { setSelection([tc]); cam.tx = tc.x; cam.tz = tc.z; } }
   if (k === 'p') togglePause();
+  if (k === '1' || k === '2' || k === '3') castAbility(+k - 1);
+  if (k === 'r') selectHero();
   if (k === 'c' && myUnits().some(u => u.type === 'villager')) startPlacing('house');
   if (k === 'b' && myUnits().some(u => u.type === 'villager')) startPlacing('barracks');
   if (k === 'f' && myUnits().some(u => u.type === 'villager')) startPlacing('farm');
@@ -377,7 +379,11 @@ function renderTopBar() {
     `<span title="Popolazione">👥 <b>${s.pop}/${s.cap}</b></span>`;
   const t = Math.floor(game.time);
   $('#clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  $('#era').textContent = ERAS[game.players[PLAYER].era].name;
+  const hero = myHero();
+  $('#heroBtn').classList.toggle('dead', !hero);
 }
+const myHero = () => game && game.units.find(u => u.alive && u.faction === PLAYER && u.isHero);
 
 const STATE_TEXT = { idle: 'In attesa', move: 'In marcia', attack: 'In combattimento', attackMove: 'Avanza all\'attacco', build: 'Costruisce' };
 function unitStatus(u) {
@@ -385,8 +391,12 @@ function unitStatus(u) {
     const what = NODES[u.gatherType]?.res;
     return u.phase === 'drop' ? `Porta ${RES_LABEL[u.carryRes] || ''} al centro` : `Raccoglie ${RES_LABEL[what] || ''} (${Math.floor(u.carry)}/10)`;
   }
-  return STATE_TEXT[u.state] || u.state;
+  let t = STATE_TEXT[u.state] || u.state;
+  if (u.buffUntil > game.time) t += ' · rinvigorito';
+  if (u.slowUntil > game.time) t += ' · rallentato';
+  return t;
 }
+const queueLabel = (f, type) => type === 'era' ? `Avanzamento alla ${ERAS[game.players[f].era + 1]?.name || ''}` : FACTIONS[f].names[type];
 
 let panelKey = '';
 function refreshPanel(force = false) {
@@ -396,7 +406,7 @@ function refreshPanel(force = false) {
   if (!sel.length) {
     if (panelKey !== 'none' || force) {
       panelKey = 'none';
-      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · WASD/frecce: camera · Q/E: ruota · H: centro città'}</div>`;
+      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · WASD/frecce: camera · Q/E: ruota · H: centro città · R: eroe · 1/2/3: abilità'}</div>`;
     }
     return;
   }
@@ -413,12 +423,19 @@ function refreshPanel(force = false) {
     info = `<h3>${name}</h3><p class="fac" style="color:#${FACTIONS[e.faction].color.toString(16).padStart(6, '0')}">${FACTIONS[e.faction].name}</p>` +
       `<div class="hp"><i style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></i><span>${Math.ceil(e.hp)}/${e.maxHp}</span></div>`;
     if (e.kind === 'unit') info += `<p>${unitStatus(e)}</p>`;
+    if (e.isHero) {
+      const next = XP_TABLE[e.level + 1];
+      const cap = game.maxLevel(e.faction);
+      const xpTxt = e.level >= cap ? (cap < 10 ? `Livello massimo per questa era (${cap})` : 'Livello massimo') : `XP ${Math.floor(e.xp)}/${next}`;
+      const pct = next && e.level < cap ? (e.xp - XP_TABLE[e.level]) / (next - XP_TABLE[e.level]) * 100 : 100;
+      info += `<p>Livello <b>${e.level}</b> · Attacco ${e.attack}</p><div class="xp"><i style="width:${Math.min(100, pct)}%"></i><span>${xpTxt}</span></div>`;
+    }
     if (e.kind === 'building') {
       if (!e.built) info += `<p>In costruzione: ${Math.floor(e.progress * 100)}%</p>`;
       else if (e.type === 'farm') info += `<p>${RES_ICON.food} Cibo infinito · contadini al lavoro: ${game.units.filter(u => u.alive && u.state === 'gather' && u.target === e).length}</p>`;
       else if (e.queue.length) {
         const q = e.queue[0];
-        info += `<p>Addestra ${FACTIONS[e.faction].names[q.type]}: ${Math.floor(q.t / UNITS[q.type].time * 100)}% · in coda ${e.queue.length}</p>`;
+        info += `<p>${q.type === 'era' ? '' : 'Addestra '}${queueLabel(e.faction, q.type)}: ${Math.floor(q.t / q.time * 100)}% · in coda ${e.queue.length}</p>`;
       }
     }
   }
@@ -430,10 +447,26 @@ function refreshPanel(force = false) {
         buttons.push({ id: 'build-' + t, label: `Costruisci ${FACTIONS[PLAYER].names[t]}`, sub: costText(c), key: { house: 'C', farm: 'F', barracks: 'B' }[t], ok: game.canAfford(PLAYER, c) });
       }
     }
+    // abilità dell'eroe
+    const hero = units.find(u => u.isHero);
+    if (hero) {
+      HEROES[PLAYER].abilities.forEach((a, i) => {
+        const why = game.abilityReady(hero, i);
+        buttons.push({ id: 'ab-' + i, label: a.name, sub: why || (isTouch ? 'Pronta' : a.desc), key: String(i + 1), ok: !why, cls: 'ability' });
+      });
+    }
     if (units.length) buttons.push({ id: 'stop', label: 'Ferma', sub: '', ok: true });
     if (e.kind === 'building' && e.built && sel.length === 1) {
-      for (const t of BUILDINGS[e.type].trains) {
-        buttons.push({ id: 'train-' + t, label: `Addestra ${FACTIONS[PLAYER].names[t]}`, sub: costText(UNITS[t].cost), ok: game.canAfford(PLAYER, UNITS[t].cost) });
+      const list = [...BUILDINGS[e.type].trains];
+      if (e.type === 'tc') list.push('era');
+      for (const t of list) {
+        const block = game.trainBlock(e, t);
+        if (t === 'era' && block === 'Era massima raggiunta') continue;
+        const info = game.queueInfo(PLAYER, t);
+        const revive = t === 'hero' && game.players[PLAYER].heroData;
+        const label = t === 'era' ? `Avanza alla ${ERAS[game.players[PLAYER].era + 1].name}` : t === 'hero' ? `${revive ? 'Rianima' : 'Evoca'} ${FACTIONS[PLAYER].names.hero}` : `Addestra ${FACTIONS[PLAYER].names[t]}`;
+        const locked = block && block.startsWith('Serve');
+        buttons.push({ id: 'train-' + t, label, sub: block && t !== 'villager' ? block : costText(info.cost), ok: !block && game.canAfford(PLAYER, info.cost), cls: t === 'era' ? 'era' : t === 'hero' ? 'ability' : locked ? 'locked' : '' });
       }
       if (e.queue.length) buttons.push({ id: 'cancel', label: 'Annulla ultimo', sub: '', ok: true });
     }
@@ -443,7 +476,7 @@ function refreshPanel(force = false) {
   if (key === panelKey && !force) return;
   panelKey = key;
   el.innerHTML = `<div class="info">${info}</div><div class="cmds">${buttons.map(b =>
-    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''}" ${b.ok ? '' : 'disabled'}>${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('')}</div>`;
+    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''} ${b.cls || ''}" ${b.ok ? '' : 'disabled'}>${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('')}</div>`;
 }
 $('#panel').addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-cmd]');
@@ -453,10 +486,65 @@ $('#panel').addEventListener('click', ev => {
   if (cmd.startsWith('build-')) startPlacing(cmd.slice(6));
   else if (cmd.startsWith('train-')) { if (game.train(b, cmd.slice(6))) refreshPanel(true); }
   else if (cmd === 'cancel') game.cancelTrain(b);
+  else if (cmd.startsWith('ab-')) castAbility(+cmd.slice(3));
   else if (cmd === 'stop') myUnits().forEach(u => { u.state = 'idle'; u.path = []; u.target = null; });
   else if (cmd === 'desel') { cancelPlacing(); setSelection([]); }
   refreshPanel(true);
 });
+
+// ---- eroe ------------------------------------------------------------------------------
+function castAbility(i) {
+  const h = myUnits().find(u => u.isHero) || myHero();
+  if (!h) { toast('Nessun eroe in campo'); return; }
+  const why = game.abilityReady(h, i);
+  if (why) { toast(why); return; }
+  game.cast(h, i);
+  refreshPanel(true);
+}
+function selectHero() {
+  const h = myHero();
+  if (!h) {
+    const pd = game.players[PLAYER];
+    toast(pd.era < HEROES[PLAYER].era ? `L'eroe arriva nella ${ERAS[HEROES[PLAYER].era].name}` : pd.heroData ? 'L\'eroe è caduto: rianimalo dal Centro Città' : 'Evoca l\'eroe dal Centro Città');
+    return;
+  }
+  setSelection([h]); cam.tx = h.x; cam.tz = h.z;
+}
+$('#heroBtn').onclick = selectHero;
+
+// effetti visivi delle abilità: un anello che si espande
+const effects = [];
+function abilityEffect(h, a, radius, color, target) {
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
+  const at = target || h;
+  m.position.set(at.x, 0.08, at.z);
+  scene.add(m);
+  effects.push({ m, t: 0, life: 0.6, radius });
+  if (target) { // fulmine: colonna di luce sul bersaglio
+    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, 6, 5),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+    bolt.position.set(target.x, 3, target.z);
+    scene.add(bolt);
+    effects.push({ m: bolt, t: 0, life: 0.35, bolt: true });
+  }
+  if (h.faction === PLAYER || target?.faction === PLAYER) toast(`${FACTIONS[h.faction].names.hero}: ${a.name}!`);
+}
+function updateEffects(dt) {
+  for (let i = effects.length - 1; i >= 0; i--) {
+    const f = effects[i]; f.t += dt;
+    const k = f.t / f.life;
+    if (!f.bolt) f.m.scale.setScalar(Math.max(0.01, f.radius * Math.min(1, k * 1.4)));
+    f.m.material.opacity = Math.max(0, 0.9 * (1 - k));
+    if (k >= 1) { scene.remove(f.m); f.m.geometry.dispose(); f.m.material.dispose(); effects.splice(i, 1); }
+  }
+}
+// annuncio grande (cambio d'era)
+function banner(title, sub) {
+  const el = $('#banner');
+  el.innerHTML = `<b>${title}</b>${sub ? `<span>${sub}</span>` : ''}`;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
 
 // ---- minimappa ---------------------------------------------------------------------
 const mini = $('#minimap');
@@ -473,8 +561,9 @@ function drawMinimap() {
     mctx.fillRect(b.cx * k, b.cz * k, b.size * k, b.size * k);
   }
   for (const u of game.units) {
-    mctx.fillStyle = u.faction === PLAYER ? '#8fb6ff' : '#ff7a70';
-    mctx.fillRect(u.x * k - 1.5, u.z * k - 1.5, 3, 3);
+    mctx.fillStyle = u.isHero ? (u.faction === PLAYER ? '#ffd75e' : '#c9f3ff') : u.faction === PLAYER ? '#8fb6ff' : '#ff7a70';
+    const sz = u.isHero ? 5 : 3;
+    mctx.fillRect(u.x * k - sz / 2, u.z * k - sz / 2, sz, sz);
   }
   // area inquadrata
   const corners = [[0, 0], [innerWidth, 0], [innerWidth, innerHeight], [0, innerHeight]].map(([x, y]) => screenToGround(x, y));
@@ -538,6 +627,13 @@ function startGame() {
   game = new Game(scene, { difficulty });
   ai = new AI(game, 'shadow');
   game.on('message', toast);
+  game.on('ability', abilityEffect);
+  game.on('level', h => { if (h.faction === PLAYER) toast(`${FACTIONS[PLAYER].names.hero} sale al livello ${h.level}!`); });
+  game.on('era', (f, era) => {
+    if (f !== PLAYER) return;
+    const unlock = era === 2 ? `Sbloccati: ${FACTIONS[PLAYER].names.archer} e ${FACTIONS[PLAYER].names.hero}` : `Sbloccati: ${FACTIONS[PLAYER].names.knight} · eroe fino al livello 10`;
+    banner(ERAS[era].name, unlock);
+  });
   game.on('died', e => { if (selection.includes(e)) setSelection(selection.filter(x => x !== e)); });
   game.on('over', result => {
     progress.games++;
@@ -552,7 +648,7 @@ function startGame() {
   });
   const tc = game.buildings.find(b => b.faction === PLAYER && b.type === 'tc');
   Object.assign(cam, { tx: tc.x + 2, tz: tc.z - 2, yaw: Math.PI * 0.25, dist: camera.aspect < 1 ? 34 : 22 });
-  selection = []; placing = null; paused = false; selNodeMarker = null; flags.length = 0;
+  selection = []; placing = null; paused = false; selNodeMarker = null; flags.length = 0; effects.length = 0;
   $('#start').hidden = true; $('#over').hidden = true; $('#hud').hidden = false;
   refreshPanel(true);
   toast('Raccogli risorse, costruisci case e una caserma. Distruggi la Fortezza dell\'Ombra!');
@@ -581,6 +677,7 @@ function loop(now) {
   if (!paused) { game.update(dt); ai.update(dt); }
   for (const u of game.units) updateBars(u, camera, selection.includes(u));
   for (const b of game.buildings) updateBars(b, camera, selection.includes(b));
+  updateEffects(dt);
   for (let i = flags.length - 1; i >= 0; i--) {
     const f = flags[i]; f.t -= dt;
     f.m.material.opacity = Math.max(0, f.t / 0.7); f.m.scale.setScalar(1 + (0.7 - f.t));

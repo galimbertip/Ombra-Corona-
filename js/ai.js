@@ -1,11 +1,11 @@
-// GPverse — Ombra & Corona — IA nemica (V.0.1.0)
+// GPverse — Ombra & Corona — IA nemica (aggiornata alla V.0.2.0)
 // Macchina a stati semplice: economia → espansione → esercito → ondate di attacco.
-import { BUILDINGS } from './config.js';
+import { BUILDINGS, ERAS, HEROES } from './config.js';
 
 const PROFILE = {
-  easy:   { villagers: 9,  firstWave: 300, wave: 3, think: 1.6 },
-  normal: { villagers: 14, firstWave: 210, wave: 4, think: 1.0 },
-  hard:   { villagers: 18, firstWave: 150, wave: 5, think: 0.7 },
+  easy:   { villagers: 9,  firstWave: 300, wave: 3, think: 1.6, era2: 10, era3: 14 },
+  normal: { villagers: 14, firstWave: 210, wave: 4, think: 1.0, era2: 9,  era3: 13 },
+  hard:   { villagers: 18, firstWave: 150, wave: 5, think: 0.7, era2: 8,  era3: 12 },
 };
 const RATIO = { bush: 0.5, tree: 0.25, gold: 0.18, stone: 0.07 };
 
@@ -64,7 +64,22 @@ export class AI {
     }
 
     // 2. nuovi contadini
-    if (vill.length < this.p.villagers && tc.queue.length < 2) g.train(tc, 'villager');
+    const era = g.players[this.f].era;
+    const advancing = tc.queue.some(q => q.type === 'era');
+    if (vill.length < this.p.villagers && tc.queue.length < 2 && !advancing) g.train(tc, 'villager');
+
+    // 2b. avanzamento di era (risparmia risorse quando è il momento)
+    const next = ERAS[era + 1];
+    const wantEra = next && !advancing && (era === 1 ? vill.length >= this.p.era2 : vill.length >= this.p.era3 && army.length >= 3);
+    if (wantEra && g.canAfford(this.f, next.cost) && tc.queue.length === 0) g.train(tc, 'era');
+
+    // 2c. eroe: evocazione o rianimazione
+    const hero = units.find(u => u.isHero);
+    if (!hero && era >= HEROES[this.f].era && !g.trainBlock(tc, 'hero') && !advancing) {
+      const info = g.queueInfo(this.f, 'hero');
+      if (g.canAfford(this.f, info.cost)) g.train(tc, 'hero');
+    }
+    if (hero) this.useHero(hero);
 
     // 3. cantieri senza costruttori
     for (const b of blds) {
@@ -86,8 +101,15 @@ export class AI {
     if (vill.length >= 6 && !barracks.length && g.canAfford(this.f, BUILDINGS.barracks.cost)) this.construct('barracks', tc, vill, 2);
     if (vill.length >= 12 && barracks.length === 1 && res.wood > 250 && g.difficulty !== 'easy') this.construct('barracks', tc, vill, 2);
 
-    // 6. soldati
-    for (const b of barracks) if (b.built && b.queue.length < 2) g.train(b, 'soldier');
+    // 6. soldati: mescola le unità sbloccate dall'era (se si risparmia per l'era, si addestra meno)
+    if (!(wantEra && !g.canAfford(this.f, next.cost) && army.length >= 3)) {
+      const mix = era >= 3 ? ['soldier', 'archer', 'knight', 'archer'] : era >= 2 ? ['soldier', 'archer', 'soldier'] : ['soldier'];
+      for (const b of barracks) {
+        if (!b.built || b.queue.length >= 2) continue;
+        this.mixI = ((this.mixI || 0) + 1) % mix.length;
+        if (!g.train(b, mix[this.mixI])) g.train(b, 'soldier');
+      }
+    }
 
     // 7. difesa: nemici vicino alla base
     const intruder = g.units.find(u => u.alive && u.faction !== this.f && Math.hypot(u.x - tc.x, u.z - tc.z) < 14);
@@ -108,6 +130,22 @@ export class AI {
         g.msg('men', this.waves === 1 ? 'L\'Ombra si muove verso di noi!' : `Nuova ondata dell'Ombra (${home.length} orchi)`);
       }
     }
+  }
+
+  // l'eroe usa le abilità quando ci sono nemici intorno
+  useHero(h) {
+    const g = this.g;
+    const near = g.enemiesNear(h.x, h.z, h.faction, 6);
+    if (!near.length) return;
+    const close = g.enemiesNear(h.x, h.z, h.faction, 4.5);
+    const abil = HEROES[h.faction].abilities;
+    abil.forEach((a, i) => {
+      if (g.abilityReady(h, i)) return;
+      const ultimate = i === 2;
+      if (ultimate && close.length < 3 && h.hp > h.maxHp * 0.4) return;
+      if (i === 1 && close.length < 2) return;
+      g.cast(h, i);
+    });
   }
 
   closest(list, t) {
