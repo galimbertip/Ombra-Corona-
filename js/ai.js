@@ -101,6 +101,20 @@ export class AI {
     if (vill.length >= 6 && !barracks.length && g.canAfford(this.f, BUILDINGS.barracks.cost)) this.construct('barracks', tc, vill, 2);
     if (vill.length >= 12 && barracks.length === 1 && res.wood > 250 && g.difficulty !== 'easy') this.construct('barracks', tc, vill, 2);
 
+    // 5b. territori: colonizza una regione confinante quando avanza cibo (preferisce quelle con risorse)
+    const colonizing = vill.some(v => v.state === 'colonize');
+    const owned = g.territory.owned(this.f).length;
+    const cost = g.territory.colonizeCost(this.f);
+    if (!colonizing && vill.length >= 6 + owned && res.food >= cost.food + 80 && g.seasons.current.id !== 'winter') {
+      const options = g.territory.regions.filter(r => !g.colonizeBlock(this.f, r));
+      const score = r => (r.bonus === 'pianura' ? 2 : 4) - Math.hypot(r.x - tc.x, r.z - tc.z) / 12 + (r.bonus === 'miniera' && era >= 2 ? 2 : 0);
+      options.sort((a, b) => score(b) - score(a));
+      if (options[0]) {
+        const v = this.closest(vill.filter(x => x.state === 'gather' || x.state === 'idle'), options[0]);
+        if (v) g.orderColonize([v], options[0]);
+      }
+    }
+
     // 6. soldati: mescola le unità sbloccate dall'era (se si risparmia per l'era, si addestra meno)
     if (!(wantEra && !g.canAfford(this.f, next.cost) && army.length >= 3)) {
       const mix = era >= 3 ? ['soldier', 'archer', 'knight', 'archer'] : era >= 2 ? ['soldier', 'archer', 'soldier'] : ['soldier'];
@@ -162,7 +176,7 @@ export class AI {
       for (let k = 0; k < 16; k++) {
         const a = (k / 16) * Math.PI * 2 + r;
         const cx = Math.round(tc.x + Math.cos(a) * r - s / 2), cz = Math.round(tc.z + Math.sin(a) * r - s / 2);
-        if (g.grid.areaFree(cx - 1, cz - 1, s + 2, s + 2)) {
+        if (g.grid.areaFree(cx - 1, cz - 1, s + 2, s + 2) && g.canPlace(type, cx, cz, this.f)) {
           const b = g.placeBuilding(type, this.f, cx, cz);
           if (b) {
             const builders = vill.filter(v => v.state !== 'build').sort((p, q) => Math.hypot(p.x - b.x, p.z - b.z) - Math.hypot(q.x - b.x, q.z - b.z)).slice(0, nBuilders);

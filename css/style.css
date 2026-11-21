@@ -205,3 +205,10 @@ small .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 1px;
 .faction-pick button.on { border-color: var(--fc); background: color-mix(in srgb, var(--fc) 22%, #2a231b); box-shadow: 0 0 12px color-mix(in srgb, var(--fc) 50%, transparent); }
 .map-desc { color: var(--muted); font-size: 12px; margin: -4px 0 0; text-align: left; }
 #pause .map-desc { text-align: center; margin: 0 0 12px; }
+
+/* stagioni (V.0.5.0) */
+#season { font-size: 13px; white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: #2a231b; border: 1px solid var(--edge); font-variant-numeric: tabular-nums; }
+#season.winter { border-color: #9fd3ff; color: #d8efff; }
+#season.autumn { border-color: #d98a3a; }
+#season.starving { background: #5a1a12; border-color: #ff7a6a; }
+@media (max-width: 720px) { #season { font-size: 11px; padding: 1px 6px; } }

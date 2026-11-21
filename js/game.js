@@ -1,7 +1,9 @@
 // GPverse — Ombra & Corona — simulazione di gioco (aggiornata alla V.0.2.0)
 import { BUILDINGS, FACTIONS, START_RES, GATHER_RATE, CARRY_MAX, POP_LIMIT, AGGRO_RANGE, RES,
   unitDef, HEROES, HERO_REVIVE, HERO_PER_LEVEL, XP_TABLE, XP_VALUE, XP_RANGE, ERAS } from './config.js';
-import { buildWorld, findPath, hideNode } from './world.js';
+import { buildWorld, findPath, hideNode, makeRng } from './world.js';
+import { Territory, BONUS } from './territory.js';
+import { Seasons, UPKEEP_EVERY } from './seasons.js';
 import { pickMap } from './maps.js';
 import { Unit, Building } from './entities.js';
 import * as THREE from '../lib/three.module.js';
@@ -39,10 +41,13 @@ export class Game {
     this.map = pickMap(map, () => (seed % 997) / 997);
     this.time = 0;
     this.over = null;              // 'win' | 'lose'
-    this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [] };
+    this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [], season: [], territory: [] };
     const w = buildWorld(scene, seed, this.map, [this.player, this.enemy]);
     this.grid = w.grid; this.nodes = w.nodes; this.ground = w.ground;
     this.bases = w.bases; this.groundCanvas = w.groundCanvas;
+    this.territory = new Territory(scene, makeRng(seed + 7), this.nodes, this.bases);
+    this.seasons = new Seasons();
+    this.upkeepT = 0;
     this.units = []; this.buildings = []; this.arrows = [];
     this.players = {};
     for (const f of Object.keys(FACTIONS)) this.players[f] = { res: { ...START_RES }, popCap: 0, era: 1, heroData: null };
@@ -74,7 +79,7 @@ export class Game {
   popCap(f) {
     let c = 0;
     for (const b of this.buildings) if (b.alive && b.built && b.faction === f) c += BUILDINGS[b.type].popCap;
-    return Math.min(c, POP_LIMIT);
+    return Math.min(c + this.territory.popBonus(f), POP_LIMIT);
   }
 
   // ---- creazione ----------------------------------------------------------
@@ -93,14 +98,22 @@ export class Game {
     }
     return b;
   }
-  canPlace(type, cx, cz) {
+  canPlace(type, cx, cz, f = this.player) {
     const s = BUILDINGS[type].size;
-    return this.grid.areaFree(cx, cz, s, s);
+    return this.grid.areaFree(cx, cz, s, s) && this.territory.ownsArea(f, cx, cz, s, s);
+  }
+  // perché non si può costruire lì (null = si può)
+  placeBlock(type, cx, cz, f = this.player) {
+    const s = BUILDINGS[type].size;
+    if (!this.territory.ownsArea(f, cx, cz, s, s)) return 'Puoi costruire solo nei tuoi territori';
+    if (!this.grid.areaFree(cx, cz, s, s)) return 'Lo spazio è occupato';
+    return null;
   }
   // piazza un cantiere pagando il costo
   placeBuilding(type, faction, cx, cz) {
     const cost = BUILDINGS[type].cost;
-    if (!this.canPlace(type, cx, cz)) { this.msg(faction, 'Non si può costruire qui'); return null; }
+    const why = this.placeBlock(type, cx, cz, faction);
+    if (why) { this.msg(faction, why); return null; }
     if (!this.canAfford(faction, cost)) { this.msg(faction, 'Risorse insufficienti'); return null; }
     this.pay(faction, cost);
     return this.addBuilding(type, faction, cx, cz, false);
@@ -293,6 +306,30 @@ export class Game {
   orderBuild(units, b) {
     units.filter(u => u.type === 'villager').forEach(u => { u.state = 'build'; u.target = b; u.path = []; u.repath = 0; });
   }
+  // colonizzare una regione confinante: un contadino ci va e la reclama (paga cibo)
+  colonizeBlock(f, r) {
+    if (!r) return 'Nessuna regione';
+    if (r.owner === f) return 'È già tua';
+    if (r.owner) return 'Appartiene al nemico';
+    if (!this.territory.canColonize(f, r)) return 'Si possono colonizzare solo regioni confinanti con le tue';
+    if (r.claiming === f) return 'Un contadino ci sta già andando';
+    return null;
+  }
+  orderColonize(units, r) {
+    const vill = units.filter(u => u.type === 'villager');
+    if (!vill.length) return false;
+    const f = vill[0].faction;
+    const why = this.colonizeBlock(f, r);
+    if (why) { this.msg(f, why); return false; }
+    const cost = this.territory.colonizeCost(f);
+    if (!this.canAfford(f, cost)) { this.msg(f, 'Risorse insufficienti'); return false; }
+    this.pay(f, cost);
+    const u = vill.sort((a, b) => Math.hypot(a.x - r.x, a.z - r.z) - Math.hypot(b.x - r.x, b.z - r.z))[0];
+    u.state = 'colonize'; u.target = r; u.colT = 0; u.colCost = cost; u.path = []; u.repath = 0;
+    r.claiming = f;
+    return true;
+  }
+
   // ordine "intelligente" dato da clic destro / tap
   smartOrder(units, target, x, z) {
     if (!units.length) return;
@@ -402,9 +439,32 @@ export class Game {
   }
 
   // ---- ciclo -------------------------------------------------------------
+  gatherMul(f, res, x, z) {
+    let m = this.territory.gatherMul(f, res, x, z);
+    if (res === 'food') m *= this.seasons.current.food;
+    if (this.players[f].starving) m *= 0.7;
+    return m;
+  }
+
   update(dt) {
     if (this.over) return;
     this.time += dt;
+
+    // stagioni e consumo di cibo d'inverno
+    const ns = this.seasons.update(dt);
+    if (ns) { this.emit('season', ns); for (const f of [this.player, this.enemy]) this.players[f].starving = false; }
+    if (this.seasons.current.upkeep) {
+      this.upkeepT += dt;
+      if (this.upkeepT >= UPKEEP_EVERY) {
+        this.upkeepT -= UPKEEP_EVERY;
+        for (const f of [this.player, this.enemy]) {
+          const p = this.players[f];
+          p.res.food = Math.max(0, p.res.food - this.pop(f));
+          const was = p.starving; p.starving = p.res.food <= 0;
+          if (p.starving && !was) this.msg(f, 'Il popolo ha fame: raccolta più lenta finché non c\'è cibo');
+        }
+      }
+    } else this.upkeepT = 0;
 
     // code di addestramento
     for (const b of this.buildings) {
@@ -476,7 +536,7 @@ export class Game {
     if (!u.path.length) return true;
     const wp = u.path[0];
     const dx = wp.x - u.x, dz = wp.z - u.z, d = Math.hypot(dx, dz);
-    const step = u.speed * (u.slowUntil > this.time ? 0.5 : 1) * dt;
+    const step = u.speed * (u.slowUntil > this.time ? 0.5 : 1) * this.seasons.current.speed * dt;
     if (d <= step) { u.x = wp.x; u.z = wp.z; u.path.shift(); }
     else { u.x += (dx / d) * step; u.z += (dz / d) * step; }
     u.face = Math.atan2(dx, dz);
@@ -540,6 +600,28 @@ export class Game {
         break;
       }
       case 'gather': this.updateGather(u, dt); break;
+      case 'colonize': {
+        const r = u.target;
+        if (!r || r.owner) {
+          if (r && r.owner !== u.faction && u.colCost) this.refund(u.faction, u.colCost);
+          if (r && r.claiming === u.faction) r.claiming = null;
+          u.state = 'idle'; u.target = null; break;
+        }
+        if (this.territory.regionAt(u.x, u.z) === r) {
+          u.path = []; u.colT += dt; u.swing = u.swing > 0 ? u.swing : 0.3;
+          if (u.colT >= 5) {
+            r.claiming = null;
+            this.territory.claim(r, u.faction);
+            const b = BONUS[r.bonus];
+            this.emit('territory', r, u.faction);
+            this.msg(u.faction, `Nuovo territorio: ${r.name} · ${b.label} (${b.desc})`);
+            if (u.faction !== this.player) this.msg(this.player, `Il nemico ha colonizzato ${r.name}`);
+            u.state = 'idle'; u.target = null; u.colCost = null;
+            if (u.gatherType) { const n = this.nearestNode(u.gatherType, u.x, u.z, 20, u.faction); if (n) this.orderGather([u], n); }
+          }
+        } else this.approach(u, r, dt);
+        break;
+      }
       case 'build': {
         const b = u.target;
         if (!b || !b.alive || b.built) {
@@ -592,10 +674,10 @@ export class Game {
       const isFarm = n.kind === 'building';
       u.face = isFarm ? Math.atan2(n.x - u.x, n.z - u.z) : Math.atan2(n.x + 0.5 - u.x, n.z + 0.5 - u.z);
       if (u.swing <= 0) u.swing = 0.35;
-      if (isFarm) { u.carry += GATHER_RATE * 0.8 * dt; u.carryRes = 'food'; return; }
+      if (isFarm) { u.carry += GATHER_RATE * 0.8 * dt * this.gatherMul(u.faction, 'food', n.cx, n.cz); u.carryRes = 'food'; return; }
       const take = Math.min(GATHER_RATE * dt, n.amount);
       n.amount -= take;
-      u.carry += take; u.carryRes = n.res;
+      u.carry += take * this.gatherMul(u.faction, n.res, n.x, n.z); u.carryRes = n.res;
       if (n.amount <= 0) {
         n.alive = false;
         this.grid.release(n.x, n.z, 1, 1);

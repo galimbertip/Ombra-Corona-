@@ -44,6 +44,10 @@ export function spriteMaterial(name) {
 }
 export function resetMaterials() { for (const k of Object.keys(mats)) delete mats[k]; }
 
+// tinta della stagione (V.0.5.0): applicata a tutti gli sprite
+export const TINT = new THREE.Color(1, 1, 1);
+export function applyTint() { for (const k of Object.keys(mats)) mats[k].color.copy(TINT); }
+
 // sprite con i piedi a terra: larghezza o altezza in unità di mondo
 export function makeSprite(name, { width, height, own = false } = {}) {
   const ar = aspect(name);

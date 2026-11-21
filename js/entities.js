@@ -1,7 +1,7 @@
 // GPverse — Ombra & Corona — unità ed edifici (sprite dipinti dalla V.0.3.0)
 import * as THREE from '../lib/three.module.js';
 import { unitDef, BUILDINGS, CAM_YAW, CAM_PITCH } from './config.js';
-import { makeSprite } from './assets.js';
+import { makeSprite, TINT } from './assets.js';
 
 let NEXT_ID = 1;
 const COS_P = Math.cos(CAM_PITCH), SIN_P = Math.sin(CAM_PITCH);
@@ -137,7 +137,7 @@ export class Unit {
     this.sprite.material.rotation = this.swing > 0 ? (flip ? 0.12 : -0.12) : 0;
     // lampo rosso quando viene colpito
     if (this.hitT > 0) { this.hitT -= dt; this.sprite.material.color.setRGB(1, 0.55, 0.55); }
-    else this.sprite.material.color.setRGB(1, 1, 1);
+    else this.sprite.material.color.copy(TINT);
   }
 }
 

@@ -11,9 +11,24 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.4.0';
+export const VERSION = 'V.0.5.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.5.0',
+    date: '2026-11-22',
+    title: 'Territori e stagioni',
+    changes: [
+      'Territori in stile Northgard: la mappa è divisa in circa 20 regioni con un nome, confini disegnati sul terreno e colori dei popoli',
+      'Si costruisce solo nelle proprie regioni; quelle confinanti si colonizzano con un contadino (pulsante Colonizza o tasto T), pagando cibo',
+      'Ogni regione dà un bonus: Foresta +20% legno, Miniere +20% oro e pietra, Pascolo +20% cibo, Pianura +3 popolazione',
+      'Clic sul terreno: scheda della regione con proprietario, bonus e risorse',
+      'Stagioni: Primavera, Estate (+15% cibo), Autunno, Inverno; il tempo rimasto si vede in alto',
+      'D\'inverno cade la neve, il cibo si raccoglie a metà, si cammina più piano e ogni abitante consuma cibo; senza scorte il popolo ha fame',
+      'Annuncio a ogni cambio di stagione e tinta dei colori che segue la stagione',
+      'L\'IA colonizza regioni, fa scorte e costruisce solo nei suoi territori',
+    ],
+  },
   {
     version: 'V.0.4.0',
     date: '2026-11-22',

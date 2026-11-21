@@ -7,6 +7,9 @@ import { GAME_TITLE, BRAND, VERSION, HISTORY } from './version.js';
 import { MAP_SIZE, RES, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_TABLE, CAM_YAW, CAM_PITCH } from './config.js';
 import { loadAssets, url, makeSprite, resetMaterials } from './assets.js';
 import { MAPS, RANDOM_MAP } from './maps.js';
+import { BONUS } from './territory.js';
+import { SEASONS } from './seasons.js';
+import { TINT, applyTint } from './assets.js';
 import { Game } from './game.js';
 import { AI } from './ai.js';
 import { updateBars } from './entities.js';
@@ -206,7 +209,7 @@ function movePlacing(sx, sy) {
 }
 function confirmPlacing() {
   if (!placing) return;
-  if (!placing.ok) { toast('Non si può costruire qui'); return; }
+  if (!placing.ok) { toast(game.placeBlock(placing.type, placing.cx, placing.cz) || 'Non si può costruire qui'); return; }
   const b = game.placeBuilding(placing.type, PLAYER, placing.cx, placing.cz);
   if (b) {
     const v = myUnits().filter(u => u.type === 'villager');
@@ -218,6 +221,36 @@ function cancelPlacing() {
   if (!placing) return;
   scene.remove(placing.ghost);
   placing = null;
+}
+
+// ---- territori ------------------------------------------------------------------------
+function regionUnder(sx, sy) {
+  const p = screenToGround(sx, sy);
+  return p && p.x >= 0 && p.z >= 0 && p.x < MAP_SIZE && p.z < MAP_SIZE ? game.territory.regionAt(p.x, p.z) : null;
+}
+let colonizing = false;
+function startColonize() {
+  cancelPlacing();
+  colonizing = true;
+  const c = game.territory.colonizeCost(PLAYER);
+  toast(`${isTouch ? 'Tocca' : 'Clicca'} una regione confinante da colonizzare · costo ${c.food} cibo`);
+}
+function stopColonize() { colonizing = false; game.territory.setHighlight(null); }
+function hoverColonize(sx, sy) {
+  const r = regionUnder(sx, sy);
+  game.territory.setHighlight(r && !game.colonizeBlock(PLAYER, r) ? r : null);
+  hoverColonize.last = r;
+}
+function confirmColonize() {
+  const r = hoverColonize.last;
+  const why = game.colonizeBlock(PLAYER, r);
+  if (why) { toast(why); return; }
+  if (explainMissing(game.territory.colonizeCost(PLAYER))) return;
+  if (game.orderColonize(myUnits(), r)) {
+    const b = BONUS[r.bonus];
+    toast(`Un contadino parte per ${r.name} (${b.label}: ${b.desc})`);
+    stopColonize();
+  }
 }
 
 // ---- comandi ----------------------------------------------------------------------
@@ -272,6 +305,7 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   if (!game) return;
   if (placing && e.pointerType === 'mouse') movePlacing(e.clientX, e.clientY);
+  if (colonizing && e.pointerType === 'mouse') hoverColonize(e.clientX, e.clientY);
   if (!pointers.has(e.pointerId)) return;
   const prev = pointers.get(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -315,28 +349,30 @@ function endPointer(e) {
   if (d.mode) return;
   // clic / tap
   if (d.touch) return tap(d.x, d.y);
-  if (d.button === 2) { if (placing) cancelPlacing(); else command(d.x, d.y); return; }
+  if (d.button === 2) { if (placing) cancelPlacing(); else if (colonizing) stopColonize(); else command(d.x, d.y); return; }
   if (d.button !== 0) return;
   if (placing) { movePlacing(d.x, d.y); confirmPlacing(); return; }
+  if (colonizing) { hoverColonize(d.x, d.y); confirmColonize(); return; }
   const t = pickAt(d.x, d.y);
   const now = performance.now();
   // doppio clic: tutte le unità dello stesso tipo sullo schermo
   if (t && t.kind === 'unit' && t.faction === PLAYER && lastClick.e === t && now - lastClick.t < 350) {
     setSelection(game.units.filter(u => u.alive && u.faction === PLAYER && u.type === t.type && toScreen(u.x, 0.5, u.z).front &&
       (() => { const s = toScreen(u.x, 0.5, u.z); return s.x > 0 && s.y > 0 && s.x < innerWidth && s.y < innerHeight; })()));
-  } else setSelection(t ? [t] : []);
+  } else setSelection(t ? [t] : [regionUnder(d.x, d.y)]);
   lastClick = { t: now, e: t };
 }
 // su touch: un tap seleziona le proprie cose, altrimenti dà un ordine alla selezione
 function tap(x, y) {
   if (placing) { movePlacing(x, y); confirmPlacing(); return; }
+  if (colonizing) { hoverColonize(x, y); confirmColonize(); return; }
   const t = pickAt(x, y);
   const mine = t && t.kind !== 'node' && t.faction === PLAYER;
   const hasUnits = myUnits().length > 0;
   const hasBuilding = selection.some(e => e.kind === 'building' && e.faction === PLAYER);
   if (mine && !(hasUnits && t.kind === 'building' && !t.built)) { setSelection([t]); return; }
   if (hasUnits || (hasBuilding && !t)) { command(x, y); return; }
-  setSelection(t ? [t] : []);
+  setSelection(t ? [t] : [regionUnder(x, y)]);
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
@@ -347,7 +383,7 @@ window.addEventListener('keydown', e => {
   if (!game || e.target.tagName === 'INPUT') return;
   keys.add(e.key.toLowerCase());
   const k = e.key.toLowerCase();
-  if (k === 'escape') { if (placing) cancelPlacing(); else if ($('#history').open) $('#history').close(); else setSelection([]); }
+  if (k === 'escape') { if (placing) cancelPlacing(); else if (colonizing) stopColonize(); else if ($('#history').open) $('#history').close(); else setSelection([]); }
   if (k === 'h') { const tc = game.buildings.find(b => b.faction === PLAYER && b.type === 'tc'); if (tc) { setSelection([tc]); cam.tx = tc.x; cam.tz = tc.z; } }
   if (k === 'p') togglePause();
   if (k === '1' || k === '2' || k === '3') castAbility(+k - 1);
@@ -355,6 +391,7 @@ window.addEventListener('keydown', e => {
   if (k === 'c' && myUnits().some(u => u.type === 'villager')) startPlacing('house');
   if (k === 'b' && myUnits().some(u => u.type === 'villager')) startPlacing('barracks');
   if (k === 'f' && myUnits().some(u => u.type === 'villager')) startPlacing('farm');
+  if (k === 't' && myUnits().some(u => u.type === 'villager')) startColonize();
 });
 window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', () => keys.clear());
@@ -398,6 +435,9 @@ function renderTopBar() {
   const t = Math.floor(game.time);
   $('#clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   $('#era').textContent = ERAS[game.players[PLAYER].era].name;
+  const se = game.seasons.current, lt = Math.ceil(game.seasons.left);
+  $('#season').textContent = `${se.icon} ${se.name} ${Math.floor(lt / 60)}:${String(lt % 60).padStart(2, '0')}`;
+  $('#season').className = se.id + (game.players[PLAYER].starving ? ' starving' : '');
   const hero = myHero();
   $('#heroBtn').classList.toggle('dead', !hero);
 }
@@ -424,7 +464,7 @@ function refreshPanel(force = false) {
   if (!sel.length) {
     if (panelKey !== 'none' || force) {
       panelKey = 'none';
-      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · WASD/frecce: camera · H: centro città · R: eroe · 1/2/3: abilità'}</div>`;
+      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · WASD/frecce: camera · H: centro città · R: eroe · 1/2/3: abilità · T: colonizza · clic sul terreno: info regione'}</div>`;
     }
     return;
   }
@@ -432,7 +472,13 @@ function refreshPanel(force = false) {
   let info = '', buttons = [], qbar = null;
   const NODE_PIC = { tree: 'res_tree_1', bush: 'res_bush', stone: 'res_stone', gold: 'res_gold' };
   const portrait = e.kind === 'node' ? NODE_PIC[e.type] : e.spriteName;
-  if (e.kind === 'node') {
+  if (e.kind === 'region') {
+    const b = BONUS[e.bonus], n = e.nodes;
+    const owner = e.owner ? FACTIONS[e.owner].name : 'Libera';
+    info = `<h3>${e.name}</h3><p class="fac">${owner}</p><p><b>${b.label}</b>: ${b.desc}</p>` +
+      `<p>${ico('wood')}${n.tree} ${ico('food')}${n.bush} ${ico('gold')}${n.gold} ${ico('stone')}${n.stone}</p>`;
+    if (!e.owner) info += `<p>${game.colonizeBlock(PLAYER, e) || `Colonizzabile: seleziona un contadino e premi Colonizza (${game.territory.colonizeCost(PLAYER).food} cibo)`}</p>`;
+  } else if (e.kind === 'node') {
     info = `<h3>${NODES[e.type].label}</h3><p>${ico(e.res)} ${Math.ceil(e.amount)} rimasti</p>`;
   } else if (sel.length > 1) {
     const by = {};
@@ -471,6 +517,8 @@ function refreshPanel(force = false) {
   if (e.faction === PLAYER) {
     const units = sel.filter(x => x.kind === 'unit');
     if (units.some(u => u.type === 'villager')) {
+      const cc = game.territory.colonizeCost(PLAYER);
+      buttons.push({ id: 'colonize', label: 'Colonizza regione', sub: costText(cc), key: 'T', ok: true, cls: game.canAfford(PLAYER, cc) ? '' : 'poor', pic: url('emblem') });
       for (const t of ['house', 'farm', 'barracks']) {
         const c = BUILDINGS[t].cost;
         buttons.push({ id: 'build-' + t, label: `Costruisci ${FACTIONS[PLAYER].names[t]}`, sub: costText(c), key: { house: 'C', farm: 'F', barracks: 'B' }[t], ok: true, cls: game.canAfford(PLAYER, c) ? '' : 'poor', pic: url(`bld_${PLAYER}_${t}`) });
@@ -532,6 +580,7 @@ $('#panel').addEventListener('click', ev => {
   } else if (cmd.startsWith('unq-')) { game.cancelTrain(b, +cmd.slice(4)); toast('Annullato, risorse restituite'); }
   else if (cmd === 'cancel') game.cancelTrain(b);
   else if (cmd.startsWith('ab-')) castAbility(+cmd.slice(3));
+  else if (cmd === 'colonize') { if (!explainMissing(game.territory.colonizeCost(PLAYER))) startColonize(); }
   else if (cmd === 'stop') myUnits().forEach(u => { u.state = 'idle'; u.path = []; u.target = null; });
   else if (cmd === 'desel') { cancelPlacing(); setSelection([]); }
   refreshPanel(true);
@@ -565,6 +614,46 @@ function selectHero() {
   setSelection([h]); cam.tx = h.x; cam.tz = h.z;
 }
 $('#heroBtn').onclick = selectHero;
+
+// ---- stagioni: neve, tinta e annunci ---------------------------------------------------
+let weather = null;
+function makeWeather() {
+  const snow = new THREE.Mesh(new THREE.PlaneGeometry(260, 260).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xf4f8ff, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+  snow.position.set(MAP_SIZE / 2, 0.005, MAP_SIZE / 2);
+  snow.renderOrder = -1;
+  const n = isTouch ? 350 : 700, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() - 0.5) * 60; pos[i * 3 + 1] = Math.random() * 14; pos[i * 3 + 2] = (Math.random() - 0.5) * 60; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const flakes = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: isTouch ? 4 : 3, sizeAttenuation: false, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+  flakes.renderOrder = 20;
+  scene.add(snow, flakes);
+  return { snow, flakes, target: new THREE.Color(1, 1, 1) };
+}
+function updateWeather(dt) {
+  if (!weather) return;
+  const se = game.seasons.current;
+  const winter = se.id === 'winter';
+  // la neve arriva e se ne va piano
+  const k = Math.min(1, dt * 1.0);
+  weather.snow.material.opacity += ((winter ? 0.38 : 0) - weather.snow.material.opacity) * k;
+  weather.flakes.material.opacity += ((winter ? 0.85 : 0) - weather.flakes.material.opacity) * k;
+  weather.flakes.visible = weather.flakes.material.opacity > 0.02;
+  if (weather.flakes.visible) {
+    const a = weather.flakes.geometry.attributes.position;
+    for (let i = 0; i < a.count; i++) {
+      let y = a.getY(i) - dt * 2.2;
+      if (y < 0) y += 14;
+      a.setY(i, y); a.setX(i, a.getX(i) + Math.sin(y + i) * dt * 0.3);
+    }
+    a.needsUpdate = true;
+    weather.flakes.position.set(cam.tx, 0, cam.tz);
+  }
+  weather.target.setRGB(...se.tint);
+  TINT.lerp(weather.target, k);
+  applyTint();
+  for (const b of game.buildings) { b.sprite.material.color.copy(TINT); }
+}
 
 // effetti visivi delle abilità: un anello che si espande
 const effects = [];
@@ -610,6 +699,7 @@ function drawMinimap() {
   // sfondo: il terreno dipinto della partita, rimpicciolito
   mctx.drawImage(game.groundCanvas, 0, 0, W, W);
   mctx.fillStyle = 'rgba(0,0,0,0.15)'; mctx.fillRect(0, 0, W, W);
+  mctx.drawImage(game.territory.canvas, 0, 0, W, W);
   const col = { tree: '#1f4424', bush: '#c23a4a', stone: '#9aa0a6', gold: '#f2c84b' };
   for (const n of game.nodes) { if (!n.alive) continue; mctx.fillStyle = col[n.type]; mctx.fillRect(n.x * k, n.z * k, k, k); }
   for (const b of game.buildings) {
@@ -687,6 +777,11 @@ function startGame() {
   ai = new AI(game, game.enemy);
   game.on('message', toast);
   game.on('ability', abilityEffect);
+  game.on('season', se => banner(se.name, se.news));
+  game.on('territory', () => { if (selection[0]?.kind === 'region') refreshPanel(true); });
+  TINT.setRGB(1, 1, 1);
+  weather = makeWeather();
+  colonizing = false;
   game.on('level', h => { if (h.faction === PLAYER) toast(`${FACTIONS[PLAYER].names.hero} sale al livello ${h.level}!`); });
   game.on('era', (f, era) => {
     if (f !== PLAYER) return;
@@ -763,6 +858,7 @@ function loop(now) {
   for (const u of game.units) updateBars(u, camera, selection.includes(u));
   for (const b of game.buildings) updateBars(b, camera, selection.includes(b));
   updateEffects(dt);
+  updateWeather(dt);
   for (let i = flags.length - 1; i >= 0; i--) {
     const f = flags[i]; f.t -= dt;
     f.m.material.opacity = Math.max(0, f.t / 0.7); f.m.scale.setScalar(1 + (0.7 - f.t));
