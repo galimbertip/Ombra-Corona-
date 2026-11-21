@@ -11,9 +11,24 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.3.0';
+export const VERSION = 'V.0.3.1';
 
 export const HISTORY = [
+  {
+    version: 'V.0.3.1',
+    date: '2026-11-21',
+    title: 'Addestramento più chiaro',
+    changes: [
+      'Barra di avanzamento dell\'addestramento con secondi mancanti; diventa rossa "In pausa" quando manca popolazione',
+      'Coda visibile con le icone delle unità: un clic su un\'icona la annulla e restituisce le risorse',
+      'Avviso chiaro quando la popolazione è al massimo: serve una Casa',
+      'Pulsanti sempre cliccabili: se mancano risorse il gioco dice quali e quante, e i costi mancanti sono in rosso',
+      'Messaggio di conferma quando un\'unità entra in coda',
+      'Contatore della popolazione rosso quando è pieno',
+      'Il pannello non si ridisegna più a ogni istante: i clic sui pulsanti non vanno persi',
+      'Corretto: gli edifici erano disegnati un po\' più in alto della loro pianta',
+    ],
+  },
   {
     version: 'V.0.3.0',
     date: '2026-11-22',

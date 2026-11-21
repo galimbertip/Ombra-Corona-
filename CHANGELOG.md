@@ -10,6 +10,16 @@ A ogni rilascio aggiorna **entrambi**.
 
 ---
 
+## V.0.3.1 — Addestramento più chiaro · 2026-11-21
+- Barra di avanzamento dell'addestramento con secondi mancanti; diventa rossa "In pausa" quando manca popolazione
+- Coda visibile con le icone delle unità: un clic su un'icona la annulla e restituisce le risorse
+- Avviso chiaro quando la popolazione è al massimo: serve una Casa
+- Pulsanti sempre cliccabili: se mancano risorse il gioco dice quali e quante, e i costi mancanti sono in rosso
+- Messaggio di conferma quando un'unità entra in coda
+- Contatore della popolazione rosso quando è pieno
+- Il pannello non si ridisegna più a ogni istante: i clic sui pulsanti non vanno persi
+- Corretto: gli edifici erano disegnati un po' più in alto della loro pianta
+
 ## V.0.3.0 — Nuova grafica · 2026-11-22
 - Grafica dipinta generata con Arena AI: unità, eroi, edifici, risorse, terreno, icone e abilità
 - Visuale isometrica fissa come in Age of Empires: niente più rotazione, restano spostamento e zoom

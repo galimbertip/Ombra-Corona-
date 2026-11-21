@@ -179,7 +179,7 @@ export class Building {
   // lo sprite sta al centro dell'edificio (per l'ordine di disegno) ma il suo fondo coincide col vertice davanti
   place(sp) {
     this.drop = (this.size / Math.SQRT2) * SIN_P;
-    sp.center.set(0.5, -this.drop / sp.scale.y + 0.02);
+    sp.center.set(0.5, this.drop / sp.scale.y - 0.02);
     return sp;
   }
   get rect() { return { x0: this.cx, z0: this.cz, x1: this.cx + this.size - 1, z1: this.cz + this.size - 1 }; }

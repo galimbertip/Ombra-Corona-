@@ -182,7 +182,7 @@ function startPlacing(type) {
   base.renderOrder = 1;
   const name = type === 'farm' || type === 'house' || type === 'barracks' ? `bld_${PLAYER}_${type}` : 'bld_construction';
   const pic = makeSprite(name, { width: s * Math.SQRT2 * 1.05, own: true });
-  pic.center.set(0.5, -(s / Math.SQRT2) * Math.sin(CAM_PITCH) / pic.scale.y);
+  pic.center.set(0.5, (s / Math.SQRT2) * Math.sin(CAM_PITCH) / pic.scale.y);
   pic.material.opacity = 0.6;
   pic.renderOrder = 9;
   ghost.add(base, pic);
@@ -387,12 +387,13 @@ function toast(text) {
 
 const ico = (k, cls = 'ico') => `<img class="${cls}" src="${url('icon_' + k)}" alt="${RES_LABEL[k] || k}">`;
 function costText(cost) {
-  return Object.entries(cost).map(([k, v]) => `${ico(k)}${v}`).join(' ');
+  const res = game ? game.players[PLAYER].res : {};
+  return Object.entries(cost).map(([k, v]) => `<span class="${res[k] < v ? 'miss' : ''}">${ico(k)}${v}</span>`).join(' ');
 }
 function renderTopBar() {
   const s = game.stats(PLAYER);
   $('#res').innerHTML = RES.map(r => `<span title="${RES_LABEL[r]}">${ico(r)}<b>${Math.floor(s.res[r])}</b></span>`).join('') +
-    `<span title="Popolazione">${ico('pop')}<b>${s.pop}/${s.cap}</b></span>`;
+    `<span title="Popolazione" class="${s.pop >= s.cap ? 'full' : ''}">${ico('pop')}<b>${s.pop}/${s.cap}</b></span>`;
   const t = Math.floor(game.time);
   $('#clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   $('#era').textContent = ERAS[game.players[PLAYER].era].name;
@@ -427,7 +428,7 @@ function refreshPanel(force = false) {
     return;
   }
   const e = sel[0];
-  let info = '', buttons = [];
+  let info = '', buttons = [], qbar = null;
   const NODE_PIC = { tree: 'res_tree_1', bush: 'res_bush', stone: 'res_stone', gold: 'res_gold' };
   const portrait = e.kind === 'node' ? NODE_PIC[e.type] : e.spriteName;
   if (e.kind === 'node') {
@@ -453,7 +454,16 @@ function refreshPanel(force = false) {
       else if (e.type === 'farm') info += `<p>${ico('food')} Cibo infinito · contadini al lavoro: ${game.units.filter(u => u.alive && u.state === 'gather' && u.target === e).length}</p>`;
       else if (e.queue.length) {
         const q = e.queue[0];
-        info += `<p>${q.type === 'era' ? '' : 'Addestra '}${queueLabel(e.faction, q.type)}: ${Math.floor(q.t / q.time * 100)}% · in coda ${e.queue.length}</p>`;
+        const pct = Math.min(100, q.t / q.time * 100);
+        const blocked = q.type !== 'era' && game.pop(e.faction) >= game.popCap(e.faction);
+        const left = Math.max(0, Math.ceil(q.time - q.t));
+        // la barra si aggiorna da sola (vedi fine di refreshPanel) senza ridisegnare i pulsanti
+        qbar = { pct, text: blocked ? 'In pausa' : `${Math.floor(pct)}% · ${left} s` };
+        info += `<p>${q.type === 'era' ? '' : 'Addestra '}<b>${queueLabel(e.faction, q.type)}</b></p>` +
+          `<div class="qbar ${blocked ? 'stop' : ''}"><i></i><span></span></div>`;
+        if (blocked && e.faction === PLAYER) info += `<p class="warn">Popolazione al massimo (${game.pop(PLAYER)}/${game.popCap(PLAYER)}): fai costruire una Casa a un contadino.</p>`;
+        if (e.faction === PLAYER) info += `<div class="queue">${e.queue.map((x, i) =>
+          `<button data-cmd="unq-${i}" title="Annulla"><img src="${url(x.type === 'era' ? 'emblem' : `unit_${PLAYER}_${x.type}`)}" alt=""></button>`).join('')}</div>`;
       }
     }
   }
@@ -462,7 +472,7 @@ function refreshPanel(force = false) {
     if (units.some(u => u.type === 'villager')) {
       for (const t of ['house', 'farm', 'barracks']) {
         const c = BUILDINGS[t].cost;
-        buttons.push({ id: 'build-' + t, label: `Costruisci ${FACTIONS[PLAYER].names[t]}`, sub: costText(c), key: { house: 'C', farm: 'F', barracks: 'B' }[t], ok: game.canAfford(PLAYER, c), pic: url(`bld_${PLAYER}_${t}`) });
+        buttons.push({ id: 'build-' + t, label: `Costruisci ${FACTIONS[PLAYER].names[t]}`, sub: costText(c), key: { house: 'C', farm: 'F', barracks: 'B' }[t], ok: true, cls: game.canAfford(PLAYER, c) ? '' : 'poor', pic: url(`bld_${PLAYER}_${t}`) });
       }
     }
     // abilità dell'eroe
@@ -484,31 +494,56 @@ function refreshPanel(force = false) {
         const revive = t === 'hero' && game.players[PLAYER].heroData;
         const label = t === 'era' ? `Avanza alla ${ERAS[game.players[PLAYER].era + 1].name}` : t === 'hero' ? `${revive ? 'Rianima' : 'Evoca'} ${FACTIONS[PLAYER].names.hero}` : `Addestra ${FACTIONS[PLAYER].names[t]}`;
         const locked = block && block.startsWith('Serve');
-        buttons.push({ id: 'train-' + t, label, sub: block && t !== 'villager' ? block : costText(info.cost), ok: !block && game.canAfford(PLAYER, info.cost), cls: t === 'era' ? 'era' : t === 'hero' ? 'ability' : locked ? 'locked' : '', pic: url(t === 'era' ? 'emblem' : `unit_${PLAYER}_${t}`) });
+        buttons.push({ id: 'train-' + t, label, sub: block && t !== 'villager' ? block : costText(info.cost), ok: !block, cls: (t === 'era' ? 'era' : t === 'hero' ? 'ability' : locked ? 'locked' : '') + (game.canAfford(PLAYER, info.cost) ? '' : ' poor'), pic: url(t === 'era' ? 'emblem' : `unit_${PLAYER}_${t}`) });
       }
       if (e.queue.length) buttons.push({ id: 'cancel', label: 'Annulla ultimo', sub: '', ok: true });
     }
   }
   buttons.push({ id: 'desel', label: '✕', sub: '', ok: true, small: true });
-  const key = info + buttons.map(b => b.id + b.ok).join();
-  if (key === panelKey && !force) return;
-  panelKey = key;
-  el.innerHTML = `${portrait ? `<img class="portrait" src="${url(portrait)}" alt="">` : ''}<div class="info">${info}</div><div class="cmds">${buttons.map(b =>
-    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''} ${b.cls || ''}" ${b.ok ? '' : 'disabled'}>${b.pic ? `<img class="pic" src="${b.pic}" alt="">` : ''}<span class="lbl">${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}</span>${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('')}</div>`;
+  const cmds = buttons.map(b =>
+    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''} ${b.cls || ''}" ${b.ok ? '' : 'disabled'}>${b.pic ? `<img class="pic" src="${b.pic}" alt="">` : ''}<span class="lbl">${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}</span>${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('');
+  // si ridisegna solo la parte cambiata: così un clic non va perso mentre il pannello si aggiorna
+  if (force || panelKey !== 'sel:' + portrait || !el.querySelector('.info')) {
+    panelKey = 'sel:' + portrait;
+    el.innerHTML = `${portrait ? `<img class="portrait" src="${url(portrait)}" alt="">` : ''}<div class="info"></div><div class="cmds"></div>`;
+  }
+  const infoEl = el.querySelector('.info'), cmdsEl = el.querySelector('.cmds');
+  if (infoEl.dataset.html !== info) { infoEl.innerHTML = info; infoEl.dataset.html = info; }
+  if (cmdsEl.dataset.html !== cmds) { cmdsEl.innerHTML = cmds; cmdsEl.dataset.html = cmds; }
+  const qb = infoEl.querySelector('.qbar');
+  if (qb && qbar) { qb.querySelector('i').style.width = qbar.pct + '%'; qb.querySelector('span').textContent = qbar.text; }
 }
 $('#panel').addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-cmd]');
   if (!btn || !game) return;
   const cmd = btn.dataset.cmd;
   const b = selection[0];
-  if (cmd.startsWith('build-')) startPlacing(cmd.slice(6));
-  else if (cmd.startsWith('train-')) { if (game.train(b, cmd.slice(6))) refreshPanel(true); }
+  if (cmd.startsWith('build-')) {
+    const t = cmd.slice(6);
+    if (!explainMissing(BUILDINGS[t].cost)) startPlacing(t);
+  } else if (cmd.startsWith('train-')) {
+    const t = cmd.slice(6);
+    if (!explainMissing(game.queueInfo(PLAYER, t).cost) && game.train(b, t)) {
+      if (t !== 'era' && game.pop(PLAYER) + b.queue.length > game.popCap(PLAYER))
+        toast(`In coda. Posti liberi: ${Math.max(0, game.popCap(PLAYER) - game.pop(PLAYER))} (${game.pop(PLAYER)}/${game.popCap(PLAYER)}): costruisci una Casa per gli altri`);
+      else toast(`${queueLabel(PLAYER, t)} in coda`);
+    }
+  } else if (cmd.startsWith('unq-')) { game.cancelTrain(b, +cmd.slice(4)); toast('Annullato, risorse restituite'); }
   else if (cmd === 'cancel') game.cancelTrain(b);
   else if (cmd.startsWith('ab-')) castAbility(+cmd.slice(3));
   else if (cmd === 'stop') myUnits().forEach(u => { u.state = 'idle'; u.path = []; u.target = null; });
   else if (cmd === 'desel') { cancelPlacing(); setSelection([]); }
   refreshPanel(true);
 });
+
+// spiega cosa manca per pagare un costo; true se manca qualcosa
+function explainMissing(cost) {
+  const miss = game.missing(PLAYER, cost);
+  const keys = Object.keys(miss);
+  if (!keys.length) return false;
+  toast(`Risorse insufficienti: mancano ${keys.map(k => `${miss[k]} ${RES_LABEL[k].toLowerCase()}`).join(', ')}`);
+  return true;
+}
 
 // ---- eroe ------------------------------------------------------------------------------
 function castAbility(i) {

@@ -159,9 +159,15 @@ export class Game {
     b.queue.push({ type, t: 0, cost, time: this.queueInfo(b.faction, type).time });
     return true;
   }
-  cancelTrain(b) {
-    const q = b.queue.pop();
+  cancelTrain(b, i = b.queue.length - 1) {
+    const [q] = b.queue.splice(i, 1);
     if (q) this.refund(b.faction, q.cost);
+  }
+  // risorse che mancano per un costo (vuoto = si può pagare)
+  missing(f, cost) {
+    const r = this.players[f].res, out = {};
+    for (const [k, v] of Object.entries(cost)) if (r[k] < v) out[k] = Math.ceil(v - r[k]);
+    return out;
   }
 
   // ---- ere ---------------------------------------------------------------
