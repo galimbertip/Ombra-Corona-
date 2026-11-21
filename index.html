@@ -50,6 +50,11 @@
       <div class="menu">
         <button id="play" class="primary">Partita libera</button>
         <button disabled title="Arriva nella V.0.8.0">Campagna <small>in arrivo · V.0.8.0</small></button>
+        <div id="factionPick" class="faction-pick"></div>
+        <label>Mappa
+          <select id="mapSel"></select>
+        </label>
+        <p id="mapDesc" class="map-desc"></p>
         <label>Difficoltà
           <select id="difficulty">
             <option value="easy">Facile</option>
@@ -60,7 +65,7 @@
         <button id="historyBtn">Storia delle versioni <span id="newBadge" class="new" hidden>Nuovo!</span></button>
       </div>
       <p id="stats"></p>
-      <p class="foot"><button class="version-badge" title="Storia delle versioni"></button> · Uomini di Pietrabianca contro Ombra della Terra Cinerea</p>
+      <p class="foot"><button class="version-badge" title="Storia delle versioni"></button> · scegli la tua fazione e conquista la mappa</p>
     </div>
   </section>
 
@@ -68,6 +73,7 @@
   <section id="pause" class="screen" hidden>
     <div class="card small">
       <h2>Pausa</h2>
+      <p id="mapInfo" class="map-desc"></p>
       <div class="menu">
         <button id="resume" class="primary">Riprendi</button>
         <button id="quit">Torna al menu</button>

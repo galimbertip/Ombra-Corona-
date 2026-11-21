@@ -194,3 +194,14 @@ small .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 1px;
 .cmds .miss { color: #ff7a6a; font-weight: bold; }
 .cmds button.poor { opacity: .7; }
 #res span.full b { color: #ff7a6a; }
+
+/* scelta fazione e mappa (V.0.4.0) */
+.faction-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.faction-pick button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px 10px; background: #2a231b;
+  border: 2px solid var(--edge); border-radius: 12px; color: var(--ink); font-size: 13px; }
+.faction-pick button img { height: 78px; object-fit: contain; filter: drop-shadow(0 3px 5px rgba(0,0,0,.6)); }
+.faction-pick button b { font-family: var(--font); font-weight: normal; font-size: 14px; line-height: 1.15; }
+.faction-pick button small { color: var(--muted); font-size: 11px; }
+.faction-pick button.on { border-color: var(--fc); background: color-mix(in srgb, var(--fc) 22%, #2a231b); box-shadow: 0 0 12px color-mix(in srgb, var(--fc) 50%, transparent); }
+.map-desc { color: var(--muted); font-size: 12px; margin: -4px 0 0; text-align: left; }
+#pause .map-desc { text-align: center; margin: 0 0 12px; }

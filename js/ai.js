@@ -127,7 +127,7 @@ export class AI {
         g.orderAttackMove(home, target.x, target.z);
         this.waves++;
         this.waveSize += 2;
-        g.msg('men', this.waves === 1 ? 'L\'Ombra si muove verso di noi!' : `Nuova ondata dell'Ombra (${home.length} orchi)`);
+        g.msg(g.player, this.waves === 1 ? 'Il nemico marcia verso di noi!' : `Nuova ondata nemica (${home.length} guerrieri)`);
       }
     }
   }

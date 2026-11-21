@@ -6,13 +6,14 @@ import * as THREE from '../lib/three.module.js';
 import { GAME_TITLE, BRAND, VERSION, HISTORY } from './version.js';
 import { MAP_SIZE, RES, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_TABLE, CAM_YAW, CAM_PITCH } from './config.js';
 import { loadAssets, url, makeSprite, resetMaterials } from './assets.js';
+import { MAPS, RANDOM_MAP } from './maps.js';
 import { Game } from './game.js';
 import { AI } from './ai.js';
 import { updateBars } from './entities.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = matchMedia('(pointer: coarse)').matches;
-const PLAYER = 'men';
+let PLAYER = 'men';          // scelto nel menu a ogni partita
 const SAVE_KEY = 'gpverse.ombra-corona.progress';
 
 // ---- progressi salvati ------------------------------------------------------
@@ -20,7 +21,7 @@ function loadProgress() {
   try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; }
 }
 function saveProgress(p) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(p)); } catch { /* storage non disponibile */ } }
-let progress = Object.assign({ games: 0, wins: 0, losses: 0, bestWin: null, lastVersion: null }, loadProgress());
+let progress = Object.assign({ games: 0, wins: 0, losses: 0, bestWin: null, lastVersion: null, faction: 'men', map: 'valle' }, loadProgress());
 
 // ---- renderer, scena, luci ----------------------------------------------------
 const canvas = $('#scene');
@@ -606,9 +607,9 @@ const mini = $('#minimap');
 const mctx = mini.getContext('2d');
 function drawMinimap() {
   const W = mini.width, k = W / MAP_SIZE;
-  mctx.fillStyle = '#3f5a2c'; mctx.fillRect(0, 0, W, W);
-  mctx.fillStyle = 'rgba(120,110,100,0.35)';
-  mctx.beginPath(); mctx.moveTo(W, 0); mctx.lineTo(W, W * 0.55); mctx.lineTo(W * 0.45, 0); mctx.fill();
+  // sfondo: il terreno dipinto della partita, rimpicciolito
+  mctx.drawImage(game.groundCanvas, 0, 0, W, W);
+  mctx.fillStyle = 'rgba(0,0,0,0.15)'; mctx.fillRect(0, 0, W, W);
   const col = { tree: '#1f4424', bush: '#c23a4a', stone: '#9aa0a6', gold: '#f2c84b' };
   for (const n of game.nodes) { if (!n.alive) continue; mctx.fillStyle = col[n.type]; mctx.fillRect(n.x * k, n.z * k, k, k); }
   for (const b of game.buildings) {
@@ -677,10 +678,13 @@ $('#quit').onclick = () => { togglePause(false); backToMenu(); };
 
 function startGame() {
   const difficulty = $('#difficulty').value;
+  PLAYER = selectedFaction;
+  const map = $('#mapSel').value;
+  progress.faction = PLAYER; progress.map = map; saveProgress(progress);
   if (game) disposeScene();
   makeScene();
-  game = new Game(scene, { difficulty });
-  ai = new AI(game, 'shadow');
+  game = new Game(scene, { difficulty, player: PLAYER, map });
+  ai = new AI(game, game.enemy);
   game.on('message', toast);
   game.on('ability', abilityEffect);
   game.on('level', h => { if (h.faction === PLAYER) toast(`${FACTIONS[PLAYER].names.hero} sale al livello ${h.level}!`); });
@@ -697,8 +701,8 @@ function startGame() {
     saveProgress(progress);
     $('#overTitle').textContent = result === 'win' ? 'Vittoria!' : 'Sconfitta';
     $('#overText').textContent = result === 'win'
-      ? `La Fortezza dell'Ombra è caduta in ${fmtTime(game.time)}. Pietrabianca è salva.`
-      : 'Il Centro Città è stato distrutto. L\'Ombra dilaga.';
+      ? `La base nemica (${FACTIONS[game.enemy].names.tc}) è caduta in ${fmtTime(game.time)}. ${FACTIONS[PLAYER].name}: vittoria!`
+      : `La vostra base (${FACTIONS[PLAYER].names.tc}) è stata distrutta. Vince ${FACTIONS[game.enemy].name}.`;
     $('#over').hidden = false;
   });
   const tc = game.buildings.find(b => b.faction === PLAYER && b.type === 'tc');
@@ -706,7 +710,8 @@ function startGame() {
   selection = []; placing = null; paused = false; selNodeMarker = null; flags.length = 0; effects.length = 0;
   $('#start').hidden = true; $('#over').hidden = true; $('#hud').hidden = false;
   refreshPanel(true);
-  toast('Raccogli risorse, costruisci case e una caserma. Distruggi la Fortezza dell\'Ombra!');
+  toast(`${game.map.name}: raccogli risorse, costruisci case e una caserma. Distruggi la base nemica (${FACTIONS[game.enemy].names.tc})!`);
+  $('#mapInfo').textContent = `${game.map.name} · seme ${game.seed} · ${FACTIONS[PLAYER].name}`;
 }
 function disposeScene() {
   resetMaterials();
@@ -717,6 +722,24 @@ function backToMenu() {
   renderStats();
   if (game) { disposeScene(); game = null; }
 }
+// scelta della fazione e della mappa
+let selectedFaction = progress.faction || 'men';
+function renderFactionPick() {
+  $('#factionPick').innerHTML = Object.entries(FACTIONS).map(([id, f]) => `
+    <button data-f="${id}" class="${id === selectedFaction ? 'on' : ''}" style="--fc:#${f.color.toString(16).padStart(6, '0')}">
+      <img src="${url(`unit_${id}_hero`)}" alt=""><b>${f.name}</b><small>Eroe: ${f.names.hero}</small>
+    </button>`).join('');
+}
+$('#factionPick').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-f]');
+  if (!b) return;
+  selectedFaction = b.dataset.f; renderFactionPick();
+});
+renderFactionPick();
+$('#mapSel').innerHTML = MAPS.map(m => `<option value="${m.id}">${m.name}</option>`).join('') + `<option value="${RANDOM_MAP}">Casuale</option>`;
+$('#mapSel').value = progress.map || 'valle';
+const mapDesc = () => { const m = MAPS.find(x => x.id === $('#mapSel').value); $('#mapDesc').textContent = m ? m.desc : 'Un tipo di mappa a sorpresa'; };
+$('#mapSel').onchange = mapDesc; mapDesc();
 $('#play').onclick = startGame;
 // la partita parte solo quando la grafica è caricata
 $('#play').disabled = true;

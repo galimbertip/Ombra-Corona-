@@ -1,7 +1,8 @@
 // GPverse — Ombra & Corona — simulazione di gioco (aggiornata alla V.0.2.0)
 import { BUILDINGS, FACTIONS, START_RES, GATHER_RATE, CARRY_MAX, POP_LIMIT, AGGRO_RANGE, RES,
   unitDef, HEROES, HERO_REVIVE, HERO_PER_LEVEL, XP_TABLE, XP_VALUE, XP_RANGE, ERAS } from './config.js';
-import { buildWorld, findPath, hideNode, BASES } from './world.js';
+import { buildWorld, findPath, hideNode } from './world.js';
+import { pickMap } from './maps.js';
 import { Unit, Building } from './entities.js';
 import * as THREE from '../lib/three.module.js';
 
@@ -29,32 +30,36 @@ export function reach(u, t) {
 }
 
 export class Game {
-  constructor(scene, { seed = Date.now() % 100000, difficulty = 'normal' } = {}) {
+  constructor(scene, { seed = Math.floor(Math.random() * 1e6), difficulty = 'normal', player = 'men', map = 'valle' } = {}) {
     this.scene = scene;
     this.seed = seed;
     this.difficulty = difficulty;
+    this.player = player;
+    this.enemy = player === 'men' ? 'shadow' : 'men';
+    this.map = pickMap(map, () => (seed % 997) / 997);
     this.time = 0;
     this.over = null;              // 'win' | 'lose'
     this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [] };
-    const w = buildWorld(scene, seed);
+    const w = buildWorld(scene, seed, this.map, [this.player, this.enemy]);
     this.grid = w.grid; this.nodes = w.nodes; this.ground = w.ground;
+    this.bases = w.bases; this.groundCanvas = w.groundCanvas;
     this.units = []; this.buildings = []; this.arrows = [];
     this.players = {};
     for (const f of Object.keys(FACTIONS)) this.players[f] = { res: { ...START_RES }, popCap: 0, era: 1, heroData: null };
-    if (difficulty === 'hard') this.players.shadow.res = { food: 400, wood: 400, stone: 200, gold: 150 };
+    if (difficulty === 'hard') this.players[this.enemy].res = { food: 400, wood: 400, stone: 200, gold: 150 };
 
     // basi iniziali
-    for (const f of Object.keys(BASES)) {
-      const b = BASES[f];
+    for (const f of [this.player, this.enemy]) {
+      const b = this.bases[f];
       const tc = this.addBuilding('tc', f, b.x, b.z, true);
       for (let i = 0; i < 3; i++) this.spawnNear(tc, 'villager');
-      if (f === 'men') this.spawnNear(tc, 'soldier');
+      if (f === this.player) this.spawnNear(tc, 'soldier');
     }
   }
 
   on(ev, fn) { this.listeners[ev].push(fn); }
   emit(ev, ...a) { this.listeners[ev].forEach(fn => fn(...a)); }
-  msg(faction, text) { if (faction === 'men') this.emit('message', text); }
+  msg(faction, text) { if (faction === this.player) this.emit('message', text); }
 
   // ---- economia ----------------------------------------------------------
   canAfford(f, cost) { const r = this.players[f].res; return Object.entries(cost).every(([k, v]) => r[k] >= v); }
@@ -178,7 +183,7 @@ export class Game {
     for (const b of this.buildings) if (b.alive && b.faction === f && b.type === 'tc') { b.maxHp += 150; b.hp += 150; }
     for (const u of this.units) if (u.alive && u.faction === f && u.isHero) this.checkLevel(u);
     this.emit('era', f, p.era);
-    if (f !== 'men') this.msg('men', `L'Ombra è entrata nella ${ERAS[p.era].name}`);
+    if (f !== this.player) this.msg(this.player, `Il nemico è entrato nella ${ERAS[p.era].name}`);
   }
 
   // ---- eroi --------------------------------------------------------------
@@ -365,10 +370,10 @@ export class Game {
     if (target.kind === 'unit') target.hitT = 0.15;
     if (target.kind === 'unit' && attacker && target.alive) {
       // reazione: i militari inattivi rispondono, i contadini scappano verso casa
-      if (target.isMilitary && (target.state === 'idle' || target.state === 'move' && target.faction === 'shadow')) this.orderAttack([target], attacker);
+      if (target.isMilitary && (target.state === 'idle' || target.state === 'move' && target.faction !== this.player)) this.orderAttack([target], attacker);
     }
-    if (target.faction === 'men' && attacker && this.time - (this._lastAlert || -99) > 8) {
-      this._lastAlert = this.time; this.msg('men', 'Siamo sotto attacco!');
+    if (target.faction === this.player && attacker && this.time - (this._lastAlert || -99) > 8) {
+      this._lastAlert = this.time; this.msg(this.player, 'Siamo sotto attacco!');
     }
     if (target.hp <= 0) this.kill(target);
   }
@@ -379,13 +384,13 @@ export class Game {
     if (e.isHero) {
       this.players[e.faction].heroData = { level: e.level, xp: e.xp, summoned: true };
       this.msg(e.faction, `${FACTIONS[e.faction].names.hero} è caduto! Puoi rianimarlo dal centro.`);
-      if (e.faction !== 'men') this.msg('men', `${FACTIONS[e.faction].names.hero} è caduto!`);
+      if (e.faction !== this.player) this.msg(this.player, `${FACTIONS[e.faction].names.hero} è caduto!`);
     }
     if (e.kind === 'building') {
       this.grid.release(e.cx, e.cz, e.size, e.size);
       if (e.type === 'tc') {
         const others = this.buildings.some(b => b.alive && b.faction === e.faction && b.type === 'tc');
-        if (!others) this.finish(e.faction === 'men' ? 'lose' : 'win');
+        if (!others) this.finish(e.faction === this.player ? 'lose' : 'win');
       }
     }
     this.emit('died', e);

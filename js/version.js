@@ -11,9 +11,23 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.3.1';
+export const VERSION = 'V.0.4.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.4.0',
+    date: '2026-11-22',
+    title: 'Fazioni e mappe casuali',
+    changes: [
+      'Nuova partita: si sceglie la fazione, Uomini di Pietrabianca oppure Ombra della Terra Cinerea',
+      'Mappe generate a caso a ogni partita: basi, boschi, miniere e bacche in posizioni sempre diverse',
+      'Tre tipi di mappa: Valle di Mezzo (equilibrata), Foreste Antiche (boschi fitti), Terre Aperte (tante miniere), oppure Casuale',
+      'Ogni mappa ha un seme: con lo stesso seme e lo stesso tipo si rigioca la stessa mappa (si vede nel menu di pausa)',
+      'Il terreno di cenere segue la base dell\'Ombra ovunque sia, e un sentiero garantisce che le basi si possano raggiungere',
+      'La minimappa mostra il terreno vero della partita',
+      'Il menu ricorda l\'ultima fazione e l\'ultima mappa scelte',
+    ],
+  },
   {
     version: 'V.0.3.1',
     date: '2026-11-21',

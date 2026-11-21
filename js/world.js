@@ -125,9 +125,7 @@ export function findPath(grid, sx, sz, goal, maxIter = 6000) {
   return path;
 }
 
-// --- Costruzione della mappa ----------------------------------------------
-export const BASES = { men: { x: 9, z: 52 }, shadow: { x: 52, z: 9 } };
-
+// --- Costruzione della mappa (casuale dalla V.0.4.0) ----------------------------
 const PX = 32; // pixel per cella nella texture del terreno
 
 // maschera morbida: f(x,z) tra 0 e 1, calcolata per cella e poi sfumata
@@ -167,21 +165,23 @@ function tileCanvas(image, tile) {
   return c;
 }
 
-// terreno dipinto: prato, cenere verso l'Ombra, terra battuta intorno alle basi
-function paintGround(rng) {
+// terreno dipinto: prato, cenere intorno all'Ombra, terra battuta intorno alle basi
+function paintGround(rng, bases) {
   const size = MAP_SIZE * PX;
   const c = document.createElement('canvas'); c.width = c.height = size;
   const g = c.getContext('2d');
   const noise = Array.from({ length: 12 }, () => ({ x: rng() * MAP_SIZE, z: rng() * MAP_SIZE, r: 3 + rng() * 6 }));
   g.drawImage(layer(size, tex.ground_grass.image, 8 * PX), 0, 0);
+  const sh = bases.shadow, mn = bases.men;
   const ash = (x, z) => {
-    const d = Math.hypot(x - BASES.shadow.x - 1.5, z - BASES.shadow.z - 1.5);
-    return ((x - z) / MAP_SIZE) * 1.6 + 0.05 + (d < 18 ? (18 - d) / 10 : 0) + Math.sin(x * 0.4) * Math.cos(z * 0.3) * 0.15;
+    const ds = Math.hypot(x - sh.x - 1.5, z - sh.z - 1.5), dm = Math.hypot(x - mn.x - 1.5, z - mn.z - 1.5);
+    const t = dm / (dm + ds + 0.001);                 // 0 vicino agli Uomini, 1 vicino all'Ombra
+    return (t - 0.45) * 3 + (ds < 18 ? (18 - ds) / 10 : 0) + Math.sin(x * 0.4) * Math.cos(z * 0.3) * 0.15;
   };
   g.drawImage(layer(size, tex.ground_ash.image, 8 * PX, maskCanvas(ash)), 0, 0);
   const dirt = (x, z) => {
     let v = 0;
-    for (const b of Object.values(BASES)) { const d = Math.hypot(x - b.x - 1.5, z - b.z - 1.5); v = Math.max(v, (5.5 - d) / 2.5); }
+    for (const b of Object.values(bases)) { const d = Math.hypot(x - b.x - 1.5, z - b.z - 1.5); v = Math.max(v, (5.5 - d) / 2.5); }
     for (const n of noise) { const d = Math.hypot(x - n.x, z - n.z); v = Math.max(v, (n.r * 0.35 - d) / n.r * 0.8); }
     return v;
   };
@@ -195,17 +195,101 @@ function paintGround(rng) {
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2);
   }
-  // bordo della mappa sfumato
   g.strokeStyle = 'rgba(20,25,10,0.5)'; g.lineWidth = PX; g.strokeRect(0, 0, size, size);
   return c;
 }
 
-export function buildWorld(scene, seed) {
+// basi in posizioni casuali, una di fronte all'altra
+function placeBases(rng, factions) {
+  const C = MAP_SIZE / 2 - 1.5, lo = 4, hi = MAP_SIZE - 7;
+  const clamp = v => Math.max(lo, Math.min(hi, Math.round(v)));
+  for (let tries = 0; tries < 50; tries++) {
+    const a = rng() * Math.PI * 2;
+    const b = a + Math.PI + (rng() - 0.5) * 0.7;
+    const r1 = 20 + rng() * 5, r2 = 20 + rng() * 5;
+    const p1 = { x: clamp(C + Math.cos(a) * r1), z: clamp(C + Math.sin(a) * r1) };
+    const p2 = { x: clamp(C + Math.cos(b) * r2), z: clamp(C + Math.sin(b) * r2) };
+    if (Math.hypot(p1.x - p2.x, p1.z - p2.z) >= 34) return { [factions[0]]: p1, [factions[1]]: p2 };
+  }
+  return { [factions[0]]: { x: 9, z: 52 }, [factions[1]]: { x: 52, z: 9 } };
+}
+
+export function buildWorld(scene, seed, mapDef, factions = ['men', 'shadow']) {
   const rng = makeRng(seed);
   const grid = new Grid(MAP_SIZE);
   const nodes = [];
+  const bases = placeBases(rng, factions);
+  const centers = Object.values(bases).map(b => ({ x: b.x + 1.5, z: b.z + 1.5 }));
+  const nearBase = (x, z, r) => centers.some(b => Math.hypot(x + 0.5 - b.x, z + 0.5 - b.z) < r);
 
-  const groundTex = new THREE.CanvasTexture(paintGround(rng));
+  const addNode = (type, x, z) => {
+    if (!grid.inside(x, z) || x < 1 || z < 1 || x > MAP_SIZE - 2 || z > MAP_SIZE - 2) return false;
+    if (!grid.isFree(x, z) || nearBase(x, z, 4.6)) return false;
+    const node = { kind: 'node', type, x, z, amount: NODES[type].amount, res: NODES[type].res, alive: true };
+    grid.occupy(x, z, 1, 1, node);
+    nodes.push(node);
+    return true;
+  };
+  // gruppo compatto di n risorse attorno a un punto (crescita casuale)
+  const cluster = (type, cx, cz, n, loose = 0) => {
+    const open = [[Math.round(cx), Math.round(cz)]], seen = new Set();
+    let placed = 0, guard = 0;
+    while (open.length && placed < n && guard++ < n * 30) {
+      const [x, z] = open.splice(Math.floor(rng() * open.length), 1)[0];
+      const k = x + ',' + z;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (addNode(type, x, z)) placed++;
+      else if (!grid.inside(x, z) || nearBase(x, z, 4.6)) continue;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (rng() > loose) open.push([x + dx, z + dz]);
+    }
+    return placed;
+  };
+
+  // risorse intorno a ogni base: bacche, oro, pietra e un bosco in direzioni diverse
+  for (const c of centers) {
+    const a0 = rng() * Math.PI * 2;
+    const at = (i, d) => { const a = a0 + i * Math.PI / 2 + (rng() - 0.5) * 0.5; return [c.x + Math.cos(a) * d, c.z + Math.sin(a) * d]; };
+    cluster('bush', ...at(0, 6.5), 6);
+    cluster('gold', ...at(1, 8), 4);
+    cluster('stone', ...at(2, 8.5), 4);
+    cluster('tree', ...at(3, 10.5), 20, 0.2);
+    cluster('gold', ...at(1.5, 13), 3);
+  }
+  // boschi sparsi
+  const F = mapDef.forests;
+  for (let f = 0; f < F.count; f++) {
+    const cx = 3 + rng() * (MAP_SIZE - 6), cz = 3 + rng() * (MAP_SIZE - 6);
+    if (nearBase(cx, cz, 9)) continue;
+    cluster('tree', cx, cz, F.min + Math.floor(rng() * (F.max - F.min)), 0.3);
+  }
+  // risorse contese lontano dalle basi
+  for (const [type, n] of Object.entries(mapDef.extra)) {
+    for (let i = 0; i < n; i++) {
+      for (let t = 0; t < 30; t++) {
+        const x = 4 + rng() * (MAP_SIZE - 8), z = 4 + rng() * (MAP_SIZE - 8);
+        if (nearBase(x, z, 14)) continue;
+        cluster(type, x, z, type === 'bush' ? 6 : 5);
+        break;
+      }
+    }
+  }
+  // le due basi devono potersi raggiungere: se un bosco le separa, apro un sentiero
+  const [b1, b2] = Object.values(bases);
+  const goal = { x0: b2.x, z0: b2.z, x1: b2.x + 2, z1: b2.z + 2 };
+  const path = findPath(grid, b1.x + 1.5, b1.z + 3.5, goal, 20000);
+  const last = path[path.length - 1];
+  if (!last || Math.hypot(last.x - b2.x - 1.5, last.z - b2.z - 1.5) > 3.5) {
+    const ax = b1.x + 1.5, az = b1.z + 1.5, bx = b2.x + 1.5, bz = b2.z + 1.5, L = Math.hypot(bx - ax, bz - az);
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const n = nodes[i], px = n.x + 0.5, pz = n.z + 0.5;
+      const t = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (pz - az) * (bz - az)) / (L * L)));
+      if (Math.hypot(px - (ax + t * (bx - ax)), pz - (az + t * (bz - az))) < 1.6) { grid.release(n.x, n.z, 1, 1); nodes.splice(i, 1); }
+    }
+  }
+
+  const groundCanvas = paintGround(rng, bases);
+  const groundTex = new THREE.CanvasTexture(groundCanvas);
   groundTex.colorSpace = THREE.SRGBColorSpace;
   groundTex.anisotropy = 8;
   const ground = new THREE.Mesh(
@@ -227,58 +311,20 @@ export function buildWorld(scene, seed) {
   wild.position.set(MAP_SIZE / 2, -0.05, MAP_SIZE / 2);
   scene.add(wild);
 
-  // aree di rispetto intorno alle basi
-  const nearBase = (x, z, r) => Object.values(BASES).some(b => Math.hypot(x - b.x - 1.5, z - b.z - 1.5) < r);
-
-  const addNode = (type, x, z) => {
-    if (!grid.isFree(x, z)) return;
-    const node = { kind: 'node', type, x, z, amount: NODES[type].amount, res: NODES[type].res, alive: true, mesh: null };
-    grid.occupy(x, z, 1, 1, node);
-    nodes.push(node);
-  };
-
-  // foreste (gruppi di alberi)
-  for (let f = 0; f < 22; f++) {
-    const cx = 4 + rng() * (MAP_SIZE - 8), cz = 4 + rng() * (MAP_SIZE - 8);
-    if (nearBase(cx, cz, 7)) continue;
-    const count = 8 + Math.floor(rng() * 18);
-    for (let t = 0; t < count; t++) {
-      const x = Math.floor(cx + (rng() - 0.5) * 7), z = Math.floor(cz + (rng() - 0.5) * 7);
-      if (grid.inside(x, z) && !nearBase(x, z, 6)) addNode('tree', x, z);
-    }
-  }
-  // risorse vicino a ogni base (stesso schema, specchiato)
-  for (const key of Object.keys(BASES)) {
-    const b = BASES[key];
-    const s = key === 'men' ? 1 : -1;
-    const place = (type, ox, oz, n) => {
-      for (let i = 0; i < n; i++) addNode(type, b.x + ox * s + (i % 3), b.z + oz * s + Math.floor(i / 3));
-    };
-    place('bush', 7, -2, 6);
-    place('gold', -4, -7, 4);
-    place('stone', 7, 6, 4);
-    // bosco vicino
-    for (let i = 0; i < 18; i++) addNode('tree', b.x + s * (10 + (i % 6)), b.z + s * (-9 + Math.floor(i / 6)));
-  }
-  // risorse contese al centro
-  for (let i = 0; i < 6; i++) addNode('gold', 30 + (i % 3), 30 + Math.floor(i / 3));
-  for (let i = 0; i < 6; i++) addNode('stone', 33 + (i % 3), 26 + Math.floor(i / 3));
-  for (let i = 0; i < 6; i++) addNode('bush', 26 + (i % 3), 34 + Math.floor(i / 3));
-
   buildNodeSprites(scene, nodes, rng);
-  return { grid, nodes, ground };
+  return { grid, nodes, ground, bases, groundCanvas };
 }
 
 // risorse come sprite dipinti
 const NODE_LOOK = {
-  tree:  () => ({ name: ['res_tree_1', 'res_tree_2', 'res_tree_3'][Math.floor(Math.random() * 3)], height: 2.1 }),
+  tree:  (rng) => ({ name: ['res_tree_1', 'res_tree_2', 'res_tree_3'][Math.floor(rng() * 3)], height: 2.1 }),
   bush:  () => ({ name: 'res_bush', width: 0.95 }),
   stone: () => ({ name: 'res_stone', width: 1.15 }),
   gold:  () => ({ name: 'res_gold', width: 1.05 }),
 };
 function buildNodeSprites(scene, nodes, rng) {
   for (const n of nodes) {
-    const look = NODE_LOOK[n.type]();
+    const look = NODE_LOOK[n.type](rng);
     const k = 0.85 + rng() * 0.3;
     const sp = makeSprite(look.name, look.width ? { width: look.width * k } : { height: look.height * k });
     if (rng() < 0.5) sp.scale.x *= -1;
