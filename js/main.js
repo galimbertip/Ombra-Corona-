@@ -4,7 +4,8 @@
 // ============================================================================
 import * as THREE from '../lib/three.module.js';
 import { GAME_TITLE, BRAND, VERSION, HISTORY } from './version.js';
-import { MAP_SIZE, RES, RES_ICON, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_TABLE } from './config.js';
+import { MAP_SIZE, RES, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_TABLE, CAM_YAW, CAM_PITCH } from './config.js';
+import { loadAssets, url, makeSprite, resetMaterials } from './assets.js';
 import { Game } from './game.js';
 import { AI } from './ai.js';
 import { updateBars } from './entities.js';
@@ -25,33 +26,27 @@ let progress = Object.assign({ games: 0, wins: 0, losses: 0, bestWin: null, last
 const canvas = $('#scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 let scene, game, ai;
-const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 300);
-const cam = { tx: 12, tz: 50, yaw: Math.PI * 0.25, pitch: 0.95, dist: 22 };
+// camera isometrica fissa (come in Age of Empires): niente rotazione, solo spostamento e zoom.
+// cam.dist = quante celle si vedono in altezza
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 500);
+const cam = { tx: 12, tz: 50, yaw: CAM_YAW, pitch: CAM_PITCH, dist: 18 };
 
 function makeScene() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x9fc3d9);
-  scene.fog = new THREE.Fog(0x9fc3d9, 45, 110);
-  scene.add(new THREE.HemisphereLight(0xdfefff, 0x3d4a2a, 0.9));
-  const sun = new THREE.DirectionalLight(0xfff1d6, 1.6);
-  sun.position.set(MAP_SIZE / 2 - 25, 40, MAP_SIZE / 2 + 15);
-  sun.target.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
-  sun.castShadow = true;
-  const sz = isTouch ? 1024 : 2048;
-  sun.shadow.mapSize.set(sz, sz);
-  Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 120 });
-  sun.shadow.bias = -0.0008;
-  scene.add(sun, sun.target);
+  scene.background = new THREE.Color(0x1d2416);
 }
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
-  camera.aspect = w / h;
+  updateProjection();
+}
+function updateProjection() {
+  const a = window.innerWidth / window.innerHeight, vh = cam.dist;
+  Object.assign(camera, { left: -vh * a / 2, right: vh * a / 2, top: vh / 2, bottom: -vh / 2 });
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
@@ -60,12 +55,13 @@ resize();
 function updateCamera() {
   cam.tx = Math.max(0, Math.min(MAP_SIZE, cam.tx));
   cam.tz = Math.max(0, Math.min(MAP_SIZE, cam.tz));
-  cam.dist = Math.max(8, Math.min(48, cam.dist));
-  const cp = Math.cos(cam.pitch);
+  cam.dist = Math.max(7, Math.min(34, cam.dist));
+  if (cam.dist !== cam._lastDist) { cam._lastDist = cam.dist; updateProjection(); }
+  const cp = Math.cos(cam.pitch), D = 120;
   camera.position.set(
-    cam.tx + Math.sin(cam.yaw) * cp * cam.dist,
-    Math.sin(cam.pitch) * cam.dist,
-    cam.tz + Math.cos(cam.yaw) * cp * cam.dist
+    cam.tx + Math.sin(cam.yaw) * cp * D,
+    Math.sin(cam.pitch) * D,
+    cam.tz + Math.cos(cam.yaw) * cp * D
   );
   camera.lookAt(cam.tx, 0, cam.tz);
 }
@@ -104,9 +100,15 @@ function pickAt(sx, sy) {
   if (best) return best;
   const p = screenToGround(sx, sy);
   if (!p) return null;
+  // edifici: prima la pianta a terra, poi il disegno (tetti e torri)
   for (const b of game.buildings) {
     const r = b.rect;
     if (p.x >= r.x0 - 0.1 && p.x <= r.x1 + 1.1 && p.z >= r.z0 - 0.1 && p.z <= r.z1 + 1.1) return b;
+  }
+  const hits = ray.intersectObjects(game.buildings.map(b => b.built ? b.sprite : b.site), false);
+  if (hits.length) {
+    hits.sort((a, c) => (c.object.parent.position.x + c.object.parent.position.z) - (a.object.parent.position.x + a.object.parent.position.z));
+    return hits[0].object.parent.userData.entity;
   }
   const gx = Math.floor(p.x), gz = Math.floor(p.z);
   // tolleranza di una cella per le risorse (alberi piccoli su smartphone)
@@ -115,6 +117,12 @@ function pickAt(sx, sy) {
     const o = game.grid.owner[game.grid.idx(gx + dx, gz + dz)];
     if (o && o.kind === 'node' && o.alive) return o;
     if (!isTouch) break;
+  }
+  // alberi: il disegno è alto, si può toccare anche la chioma
+  const trees = ray.intersectObjects(game.nodes.filter(n => n.alive && n.sprite).map(n => n.sprite), false);
+  if (trees.length) {
+    trees.sort((a, c) => (c.object.position.x + c.object.position.z) - (a.object.position.x + a.object.position.z));
+    return trees[0].object.userData.node;
   }
   return null;
 }
@@ -139,7 +147,8 @@ let selNodeMarker = null;
 function showNodeMarker(n) {
   if (!selNodeMarker) {
     selNodeMarker = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.52, 20).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.9, depthWrite: false }));
+      new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false }));
+    selNodeMarker.renderOrder = 1;
     scene.add(selNodeMarker);
   }
   selNodeMarker.position.set(n.x + 0.5, 0.04, n.z + 0.5);
@@ -166,9 +175,18 @@ function startPlacing(type) {
   if (!game.canAfford(PLAYER, BUILDINGS[type].cost)) { toast('Risorse insufficienti'); return; }
   cancelPlacing();
   const s = BUILDINGS[type].size;
-  const ghost = new THREE.Mesh(new THREE.BoxGeometry(s, 0.8, s),
-    new THREE.MeshBasicMaterial({ color: 0x55ff55, transparent: true, opacity: 0.4, depthWrite: false }));
-  ghost.position.y = 0.4;
+  // anteprima: rombo colorato a terra + disegno semitrasparente dell'edificio
+  const ghost = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.PlaneGeometry(s, s).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0x55ff55, transparent: true, opacity: 0.35, depthTest: false, depthWrite: false }));
+  base.renderOrder = 1;
+  const name = type === 'farm' || type === 'house' || type === 'barracks' ? `bld_${PLAYER}_${type}` : 'bld_construction';
+  const pic = makeSprite(name, { width: s * Math.SQRT2 * 1.05, own: true });
+  pic.center.set(0.5, -(s / Math.SQRT2) * Math.sin(CAM_PITCH) / pic.scale.y);
+  pic.material.opacity = 0.6;
+  pic.renderOrder = 9;
+  ghost.add(base, pic);
+  ghost.userData.base = base;
   ghost.visible = false;
   scene.add(ghost);
   placing = { type, ghost, cx: 0, cz: 0, ok: false };
@@ -182,8 +200,8 @@ function movePlacing(sx, sy) {
   placing.cx = Math.round(p.x - s / 2); placing.cz = Math.round(p.z - s / 2);
   placing.ok = game.canPlace(placing.type, placing.cx, placing.cz);
   placing.ghost.visible = true;
-  placing.ghost.position.set(placing.cx + s / 2, 0.4, placing.cz + s / 2);
-  placing.ghost.material.color.setHex(placing.ok ? 0x55ff55 : 0xff4444);
+  placing.ghost.position.set(placing.cx + s / 2, 0, placing.cz + s / 2);
+  placing.ghost.userData.base.material.color.setHex(placing.ok ? 0x55ff55 : 0xff4444);
 }
 function confirmPlacing() {
   if (!placing) return;
@@ -223,7 +241,8 @@ function command(sx, sy) {
 const flags = [];
 function flagAt(x, z, color) {
   const m = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.3, 16).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, depthWrite: false }));
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, depthTest: false, depthWrite: false }));
+  m.renderOrder = 1;
   m.position.set(x, 0.05, z);
   scene.add(m);
   flags.push({ m, t: 0.7 });
@@ -260,7 +279,7 @@ canvas.addEventListener('pointermove', e => {
     const d = Math.hypot(a.x - b.x, a.y - b.y);
     cam.dist = pinch.dist * (pinch.d / Math.max(d, 1));
     const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
-    panCamera(-(cx - pinch.cx) * cam.dist * 0.0022, (cy - pinch.cy) * cam.dist * 0.0022 * 1.3);
+    panCamera(-(cx - pinch.cx) * cam.dist / innerHeight, (cy - pinch.cy) * cam.dist / innerHeight / Math.sin(CAM_PITCH));
     pinch.cx = cx; pinch.cy = cy;
     return;
   }
@@ -273,8 +292,8 @@ canvas.addEventListener('pointermove', e => {
     else drag.mode = 'none';
   }
   if (drag.mode === 'pan') {
-    const k = cam.dist * 0.0022;
-    panCamera(-(e.clientX - prev.x) * k, (e.clientY - prev.y) * k * 1.3);
+    const k = cam.dist / innerHeight;
+    panCamera(-(e.clientX - prev.x) * k, (e.clientY - prev.y) * k / Math.sin(CAM_PITCH));
   } else if (drag.mode === 'box') {
     Object.assign(boxEl.style, {
       left: Math.min(drag.x0, drag.x) + 'px', top: Math.min(drag.y0, drag.y) + 'px',
@@ -347,13 +366,9 @@ function keyboardCamera(dt) {
   if (keys.has('a') || keys.has('arrowleft')) dx -= sp;
   if (keys.has('d') || keys.has('arrowright')) dx += sp;
   if (dx || dz) panCamera(dx, dz);
-  if (keys.has('q')) cam.yaw -= 1.6 * dt;
-  if (keys.has('e')) cam.yaw += 1.6 * dt;
 }
 
 // pulsanti a schermo (utili soprattutto su smartphone)
-$('#rotL').onclick = () => { cam.yaw -= Math.PI / 8; };
-$('#rotR').onclick = () => { cam.yaw += Math.PI / 8; };
 $('#zoomIn').onclick = () => { cam.dist *= 0.8; };
 $('#zoomOut').onclick = () => { cam.dist *= 1.25; };
 function toggleBoxMode(v = !boxMode) { boxMode = v; $('#boxBtn').classList.toggle('on', boxMode); if (boxMode) toast('Trascina per selezionare un gruppo'); }
@@ -370,13 +385,14 @@ function toast(text) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+const ico = (k, cls = 'ico') => `<img class="${cls}" src="${url('icon_' + k)}" alt="${RES_LABEL[k] || k}">`;
 function costText(cost) {
-  return Object.entries(cost).map(([k, v]) => `${RES_ICON[k]}${v}`).join(' ');
+  return Object.entries(cost).map(([k, v]) => `${ico(k)}${v}`).join(' ');
 }
 function renderTopBar() {
   const s = game.stats(PLAYER);
-  $('#res').innerHTML = RES.map(r => `<span title="${RES_LABEL[r]}">${RES_ICON[r]} <b>${Math.floor(s.res[r])}</b></span>`).join('') +
-    `<span title="Popolazione">👥 <b>${s.pop}/${s.cap}</b></span>`;
+  $('#res').innerHTML = RES.map(r => `<span title="${RES_LABEL[r]}">${ico(r)}<b>${Math.floor(s.res[r])}</b></span>`).join('') +
+    `<span title="Popolazione">${ico('pop')}<b>${s.pop}/${s.cap}</b></span>`;
   const t = Math.floor(game.time);
   $('#clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   $('#era').textContent = ERAS[game.players[PLAYER].era].name;
@@ -406,14 +422,16 @@ function refreshPanel(force = false) {
   if (!sel.length) {
     if (panelKey !== 'none' || force) {
       panelKey = 'none';
-      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · WASD/frecce: camera · Q/E: ruota · H: centro città · R: eroe · 1/2/3: abilità'}</div>`;
+      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · WASD/frecce: camera · H: centro città · R: eroe · 1/2/3: abilità'}</div>`;
     }
     return;
   }
   const e = sel[0];
   let info = '', buttons = [];
+  const NODE_PIC = { tree: 'res_tree_1', bush: 'res_bush', stone: 'res_stone', gold: 'res_gold' };
+  const portrait = e.kind === 'node' ? NODE_PIC[e.type] : e.spriteName;
   if (e.kind === 'node') {
-    info = `<h3>${NODES[e.type].label}</h3><p>${RES_ICON[e.res]} ${Math.ceil(e.amount)} rimasti</p>`;
+    info = `<h3>${NODES[e.type].label}</h3><p>${ico(e.res)} ${Math.ceil(e.amount)} rimasti</p>`;
   } else if (sel.length > 1) {
     const by = {};
     sel.forEach(u => { const n = FACTIONS[u.faction].names[u.type]; by[n] = (by[n] || 0) + 1; });
@@ -432,7 +450,7 @@ function refreshPanel(force = false) {
     }
     if (e.kind === 'building') {
       if (!e.built) info += `<p>In costruzione: ${Math.floor(e.progress * 100)}%</p>`;
-      else if (e.type === 'farm') info += `<p>${RES_ICON.food} Cibo infinito · contadini al lavoro: ${game.units.filter(u => u.alive && u.state === 'gather' && u.target === e).length}</p>`;
+      else if (e.type === 'farm') info += `<p>${ico('food')} Cibo infinito · contadini al lavoro: ${game.units.filter(u => u.alive && u.state === 'gather' && u.target === e).length}</p>`;
       else if (e.queue.length) {
         const q = e.queue[0];
         info += `<p>${q.type === 'era' ? '' : 'Addestra '}${queueLabel(e.faction, q.type)}: ${Math.floor(q.t / q.time * 100)}% · in coda ${e.queue.length}</p>`;
@@ -444,7 +462,7 @@ function refreshPanel(force = false) {
     if (units.some(u => u.type === 'villager')) {
       for (const t of ['house', 'farm', 'barracks']) {
         const c = BUILDINGS[t].cost;
-        buttons.push({ id: 'build-' + t, label: `Costruisci ${FACTIONS[PLAYER].names[t]}`, sub: costText(c), key: { house: 'C', farm: 'F', barracks: 'B' }[t], ok: game.canAfford(PLAYER, c) });
+        buttons.push({ id: 'build-' + t, label: `Costruisci ${FACTIONS[PLAYER].names[t]}`, sub: costText(c), key: { house: 'C', farm: 'F', barracks: 'B' }[t], ok: game.canAfford(PLAYER, c), pic: url(`bld_${PLAYER}_${t}`) });
       }
     }
     // abilità dell'eroe
@@ -452,7 +470,7 @@ function refreshPanel(force = false) {
     if (hero) {
       HEROES[PLAYER].abilities.forEach((a, i) => {
         const why = game.abilityReady(hero, i);
-        buttons.push({ id: 'ab-' + i, label: a.name, sub: why || (isTouch ? 'Pronta' : a.desc), key: String(i + 1), ok: !why, cls: 'ability' });
+        buttons.push({ id: 'ab-' + i, label: a.name, sub: why || (isTouch ? 'Pronta' : a.desc), key: String(i + 1), ok: !why, cls: 'ability', pic: url('ability_' + a.id) });
       });
     }
     if (units.length) buttons.push({ id: 'stop', label: 'Ferma', sub: '', ok: true });
@@ -466,7 +484,7 @@ function refreshPanel(force = false) {
         const revive = t === 'hero' && game.players[PLAYER].heroData;
         const label = t === 'era' ? `Avanza alla ${ERAS[game.players[PLAYER].era + 1].name}` : t === 'hero' ? `${revive ? 'Rianima' : 'Evoca'} ${FACTIONS[PLAYER].names.hero}` : `Addestra ${FACTIONS[PLAYER].names[t]}`;
         const locked = block && block.startsWith('Serve');
-        buttons.push({ id: 'train-' + t, label, sub: block && t !== 'villager' ? block : costText(info.cost), ok: !block && game.canAfford(PLAYER, info.cost), cls: t === 'era' ? 'era' : t === 'hero' ? 'ability' : locked ? 'locked' : '' });
+        buttons.push({ id: 'train-' + t, label, sub: block && t !== 'villager' ? block : costText(info.cost), ok: !block && game.canAfford(PLAYER, info.cost), cls: t === 'era' ? 'era' : t === 'hero' ? 'ability' : locked ? 'locked' : '', pic: url(t === 'era' ? 'emblem' : `unit_${PLAYER}_${t}`) });
       }
       if (e.queue.length) buttons.push({ id: 'cancel', label: 'Annulla ultimo', sub: '', ok: true });
     }
@@ -475,8 +493,8 @@ function refreshPanel(force = false) {
   const key = info + buttons.map(b => b.id + b.ok).join();
   if (key === panelKey && !force) return;
   panelKey = key;
-  el.innerHTML = `<div class="info">${info}</div><div class="cmds">${buttons.map(b =>
-    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''} ${b.cls || ''}" ${b.ok ? '' : 'disabled'}>${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('')}</div>`;
+  el.innerHTML = `${portrait ? `<img class="portrait" src="${url(portrait)}" alt="">` : ''}<div class="info">${info}</div><div class="cmds">${buttons.map(b =>
+    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''} ${b.cls || ''}" ${b.ok ? '' : 'disabled'}>${b.pic ? `<img class="pic" src="${b.pic}" alt="">` : ''}<span class="lbl">${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}</span>${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('')}</div>`;
 }
 $('#panel').addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-cmd]');
@@ -516,14 +534,16 @@ $('#heroBtn').onclick = selectHero;
 const effects = [];
 function abilityEffect(h, a, radius, color, target) {
   const m = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+  m.renderOrder = 1;
   const at = target || h;
   m.position.set(at.x, 0.08, at.z);
   scene.add(m);
   effects.push({ m, t: 0, life: 0.6, radius });
   if (target) { // fulmine: colonna di luce sul bersaglio
     const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, 6, 5),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false }));
+    bolt.renderOrder = 4;
     bolt.position.set(target.x, 3, target.z);
     scene.add(bolt);
     effects.push({ m: bolt, t: 0, life: 0.35, bolt: true });
@@ -647,13 +667,14 @@ function startGame() {
     $('#over').hidden = false;
   });
   const tc = game.buildings.find(b => b.faction === PLAYER && b.type === 'tc');
-  Object.assign(cam, { tx: tc.x + 2, tz: tc.z - 2, yaw: Math.PI * 0.25, dist: camera.aspect < 1 ? 34 : 22 });
+  Object.assign(cam, { tx: tc.x + 3, tz: tc.z - 1, dist: innerWidth < innerHeight ? 22 : 16 });
   selection = []; placing = null; paused = false; selNodeMarker = null; flags.length = 0; effects.length = 0;
   $('#start').hidden = true; $('#over').hidden = true; $('#hud').hidden = false;
   refreshPanel(true);
   toast('Raccogli risorse, costruisci case e una caserma. Distruggi la Fortezza dell\'Ombra!');
 }
 function disposeScene() {
+  resetMaterials();
   scene.traverse(o => { o.geometry?.dispose(); if (o.material) [].concat(o.material).forEach(m => m.dispose()); });
 }
 function backToMenu() {
@@ -662,6 +683,12 @@ function backToMenu() {
   if (game) { disposeScene(); game = null; }
 }
 $('#play').onclick = startGame;
+// la partita parte solo quando la grafica è caricata
+$('#play').disabled = true;
+$('#play').textContent = 'Caricamento grafica… 0%';
+loadAssets(p => { $('#play').textContent = `Caricamento grafica… ${Math.round(p * 100)}%`; })
+  .then(() => { $('#play').disabled = false; $('#play').textContent = 'Partita libera'; })
+  .catch(err => { $('#play').textContent = 'Errore nel caricare la grafica'; console.error(err); });
 $('#again').onclick = startGame;
 $('#toMenu').onclick = backToMenu;
 

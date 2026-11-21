@@ -11,9 +11,24 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.2.0';
+export const VERSION = 'V.0.3.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.3.0',
+    date: '2026-11-22',
+    title: 'Nuova grafica',
+    changes: [
+      'Grafica dipinta generata con Arena AI: unità, eroi, edifici, risorse, terreno, icone e abilità',
+      'Visuale isometrica fissa come in Age of Empires: niente più rotazione, restano spostamento e zoom',
+      'Terreno dipinto: prato, cenere verso la Terra Cinerea e terra battuta intorno alle basi',
+      'Gli edifici in costruzione mostrano il cantiere e poi compaiono a lavori quasi finiti',
+      'Le unità si girano verso dove camminano, saltellano in marcia e lampeggiano quando vengono colpite',
+      'Icone dipinte per risorse, pulsanti e abilità; ritratto dell\'elemento selezionato',
+      'Schermata iniziale con paesaggio e stemma del gioco',
+      'La Casa degli Uomini ha due varianti',
+    ],
+  },
   {
     version: 'V.0.2.0',
     date: '2026-11-17',

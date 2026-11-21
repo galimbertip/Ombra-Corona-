@@ -1,19 +1,39 @@
-// GPverse — Ombra & Corona — unità ed edifici (aggiornato alla V.0.2.0)
+// GPverse — Ombra & Corona — unità ed edifici (sprite dipinti dalla V.0.3.0)
 import * as THREE from '../lib/three.module.js';
-import { unitDef, BUILDINGS, FACTIONS } from './config.js';
+import { unitDef, BUILDINGS, CAM_YAW, CAM_PITCH } from './config.js';
+import { makeSprite } from './assets.js';
 
 let NEXT_ID = 1;
-const mat = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra });
+const COS_P = Math.cos(CAM_PITCH), SIN_P = Math.sin(CAM_PITCH);
+// altezza nel mondo a cui un punto appare "h" più in alto sullo schermo
+const screenUp = (h) => h / COS_P;
 
-const SKIN = { men: 0xe0b48e, shadow: 0x5f7a45 };
-
-// --- barra vita (due piani che guardano la camera) ---------------------------
+// --- elementi a terra (anelli, ombre) e barre vita -----------------------------
+function groundDecal(geo, color, opacity) {
+  const m = new THREE.Mesh(geo.rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, depthWrite: false }));
+  m.position.y = 0.02;
+  m.renderOrder = 1;
+  return m;
+}
+function makeRing(radius) {
+  const ring = groundDecal(new THREE.RingGeometry(radius * 0.85, radius, 28), 0x7dff7d, 0.9);
+  ring.scale.z = 1;
+  ring.visible = false;
+  return ring;
+}
+function makeShadow(w) {
+  const s = groundDecal(new THREE.CircleGeometry(0.5, 20), 0x000000, 0.28);
+  s.scale.set(w, 1, w * 0.75);
+  return s;
+}
 function makeHpBar(width, y) {
   const g = new THREE.Group();
-  const bg = new THREE.Mesh(new THREE.PlaneGeometry(width, 0.12), new THREE.MeshBasicMaterial({ color: 0x220000, depthTest: false }));
-  const fg = new THREE.Mesh(new THREE.PlaneGeometry(width, 0.12), new THREE.MeshBasicMaterial({ color: 0x4cd964, depthTest: false }));
-  fg.position.z = 0.001;
-  bg.renderOrder = 10; fg.renderOrder = 11;
+  const mk = (color, order) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(width, 0.1), new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false }));
+    m.renderOrder = order; return m;
+  };
+  const bg = mk(0x220000, 10), fg = mk(0x4cd964, 11);
   g.add(bg, fg);
   g.position.y = y;
   g.userData = { fg, width };
@@ -21,127 +41,13 @@ function makeHpBar(width, y) {
   return g;
 }
 
-function makeRing(radius) {
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(radius * 0.85, radius, 24).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0x7dff7d, transparent: true, opacity: 0.85, depthWrite: false })
-  );
-  ring.position.y = 0.03;
-  ring.visible = false;
-  return ring;
-}
-
-// --- modelli unità ----------------------------------------------------------
-function horseModel(faction) {
-  const h = new THREE.Group();
-  const coat = faction === 'men' ? 0x8b5a2b : 0x55504a; // cavallo / lupo mannaro
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.32, 0.8), mat(coat));
-  body.position.y = 0.5;
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.36, 0.2), mat(coat));
-  neck.position.set(0, 0.72, 0.4); neck.rotation.x = -0.5;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, faction === 'men' ? 0.32 : 0.26), mat(coat));
-  head.position.set(0, 0.86, 0.56);
-  h.add(body, neck, head);
-  for (const [x, z] of [[0.12, 0.3], [-0.12, 0.3], [0.12, -0.3], [-0.12, -0.3]]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.36, 0.08), mat(coat));
-    leg.position.set(x, 0.18, z);
-    h.add(leg);
-  }
-  const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.12, 0.4), mat(FACTIONS[faction].color));
-  cloth.position.y = 0.66;
-  h.add(cloth);
-  return h;
-}
-
-function unitModel(type, faction) {
-  const g = new THREE.Group();
-  const team = FACTIONS[faction].color;
-  const skin = SKIN[faction];
-  const armored = type !== 'villager';
-  let big = faction === 'shadow' && type === 'soldier' ? 1.15 : 1;
-  if (type === 'hero') big = 1.35;
-
-  // il cavaliere sta in sella: tutto il corpo si alza
-  const rider = new THREE.Group();
-  if (type === 'knight') { g.add(horseModel(faction)); rider.position.set(0, 0.42, -0.05); rider.scale.setScalar(0.85); }
-  g.add(rider);
-
-  const robe = type === 'hero' && faction === 'shadow';
-  const bodyColor = robe ? 0xeeeeee : type === 'hero' ? 0x2f3d4f : armored ? 0x6f7680 : 0x8a6a45;
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.17, robe ? 0.3 : 0.24, robe ? 0.7 : 0.55, 6), mat(bodyColor));
-  body.position.y = robe ? 0.35 : 0.38;
-  const tabard = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.2, 0.22, 6), mat(team));
-  tabard.position.y = 0.45;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 7, 5), mat(robe ? 0xe8dcc8 : skin));
-  head.position.y = 0.78;
-  rider.add(body, tabard, head);
-
-  if (type === 'villager') {
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.14, 7), mat(0xc9a86a));
-    hat.position.y = 0.9;
-    const tool = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.04), mat(0x6b4a2b));
-    tool.position.set(0.24, 0.45, 0.05); tool.rotation.z = 0.3;
-    rider.add(hat, tool);
-  } else if (type === 'hero') {
-    if (faction === 'men') {
-      // corona d'oro, mantello e spada lunga
-      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.1, 8, 1, true), mat(0xe0b43a, { side: THREE.DoubleSide }));
-      crown.position.y = 0.92;
-      const cape = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.6, 0.05), mat(0x1f3f8a));
-      cape.position.set(0, 0.45, -0.2);
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.8, 0.02), mat(0xe6eef5));
-      blade.position.set(0.28, 0.75, 0.05);
-      const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.04), mat(0xe0b43a));
-      hilt.position.set(0.28, 0.36, 0.05);
-      rider.add(crown, cape, blade, hilt);
-    } else {
-      // bastone bianco con gemma, barba
-      const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 1.3, 5), mat(0xd8d8d8));
-      staff.position.set(0.28, 0.62, 0.05);
-      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), new THREE.MeshBasicMaterial({ color: 0x9fe8ff }));
-      gem.position.set(0.28, 1.32, 0.05);
-      const beard = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), mat(0xf2f2f2));
-      beard.position.set(0, 0.62, 0.08); beard.rotation.x = Math.PI;
-      const hood = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.26, 7), mat(0xeeeeee));
-      hood.position.y = 0.93;
-      rider.add(staff, gem, beard, hood);
-    }
-  } else {
-    const helm = faction === 'men'
-      ? new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.22, 7), mat(0xc8ccd2))
-      : new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.26), mat(0x2a2a2a));
-    helm.position.y = faction === 'men' ? 0.92 : 0.86;
-    rider.add(helm);
-    if (type === 'archer') {
-      const bow = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.025, 4, 10, Math.PI), mat(0x6b4a2b));
-      bow.position.set(0.26, 0.55, 0.05); bow.rotation.z = -Math.PI / 2;
-      const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.4, 5), mat(0x5a3b22));
-      quiver.position.set(-0.12, 0.6, -0.18); quiver.rotation.x = 0.3;
-      rider.add(bow, quiver);
-    } else {
-      const spear = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2, 4), mat(0x6b4a2b));
-      spear.position.set(0.26, 0.6, type === 'knight' ? 0.2 : 0);
-      if (type === 'knight') spear.rotation.x = 0.6;
-      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 4), mat(0xdddddd));
-      tip.position.set(0.26, 1.27, 0);
-      if (type === 'knight') { tip.position.set(0.26, 1.1, 0.55); tip.rotation.x = 0.6; }
-      const shield = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.34, 0.26), mat(team));
-      shield.position.set(-0.24, 0.45, 0.02);
-      rider.add(spear, tip, shield);
-    }
-  }
-  g.scale.setScalar(big * 1.25);
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  return g;
-}
-
-// etichetta del livello dell'eroe (sprite con testo)
 export function makeLevelSprite() {
   const c = document.createElement('canvas'); c.width = 64; c.height = 32;
   const tex = new THREE.CanvasTexture(c);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
   sp.scale.set(0.8, 0.4, 1);
   sp.renderOrder = 12;
+  sp.center.set(0.5, 0);
   sp.userData.draw = (lv) => {
     const x = c.getContext('2d');
     x.clearRect(0, 0, 64, 32);
@@ -154,80 +60,17 @@ export function makeLevelSprite() {
   return sp;
 }
 
-// --- modelli edifici ----------------------------------------------------------
-function farmModel(faction) {
-  const g = new THREE.Group();
-  const soil = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 1.9), mat(faction === 'men' ? 0x7a5a32 : 0x4a3b2e));
-  soil.position.y = 0.04;
-  g.add(soil);
-  for (let i = 0; i < 4; i++) {
-    const row = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.16, 0.18), mat(faction === 'men' ? 0xb7c94a : 0x6f7a3a));
-    row.position.set(0, 0.14, -0.6 + i * 0.4);
-    g.add(row);
-  }
-  const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), mat(FACTIONS[faction].color));
-  post.position.set(0.85, 0.25, 0.85);
-  g.add(post);
-  g.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
-  return g;
-}
+// --- aspetto delle unità -----------------------------------------------------------
+// altezza dello sprite (in celle) e verso in cui guarda il disegno originale
+const UNIT_LOOK = {
+  villager: { men: 1.35, shadow: 1.25 },
+  soldier:  { men: 1.65, shadow: 1.55 },
+  archer:   { men: 1.5,  shadow: 1.4 },
+  knight:   { men: 1.9,  shadow: 1.7 },
+  hero:     { men: 1.9,  shadow: 2.0 },
+};
+const FACES_LEFT = new Set(['unit_shadow_soldier']);
 
-function buildingModel(type, faction) {
-  if (type === 'farm') return farmModel(faction);
-  const g = new THREE.Group();
-  const size = BUILDINGS[type].size;
-  const team = FACTIONS[faction].color;
-  const wall = faction === 'men' ? 0xd9d2c0 : 0x3a3434;
-  const roof = faction === 'men' ? 0x8c3b2a : 0x1d1b1b;
-  const h = type === 'tc' ? 1.6 : type === 'barracks' ? 1.2 : 0.9;
-
-  const base = new THREE.Mesh(new THREE.BoxGeometry(size * 0.9, h, size * 0.9), mat(wall));
-  base.position.y = h / 2;
-  g.add(base);
-
-  if (faction === 'men') {
-    const r = new THREE.Mesh(new THREE.ConeGeometry(size * 0.72, h * 0.8, 4), mat(roof));
-    r.rotation.y = Math.PI / 4; r.position.y = h + h * 0.4;
-    g.add(r);
-  } else {
-    // punte dell'Ombra
-    for (let i = 0; i < 4; i++) {
-      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.14, h * 0.9, 4), mat(roof));
-      sp.position.set((i % 2 ? 1 : -1) * size * 0.38, h + h * 0.4, (i < 2 ? 1 : -1) * size * 0.38);
-      g.add(sp);
-    }
-    const top = new THREE.Mesh(new THREE.BoxGeometry(size * 0.6, h * 0.4, size * 0.6), mat(0x2a2424));
-    top.position.y = h + h * 0.2;
-    g.add(top);
-  }
-  if (type === 'tc') {
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 2.6, 6), mat(wall));
-    tower.position.set(size * 0.3, 1.3, -size * 0.3);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 4), mat(0x444444));
-    pole.position.set(size * 0.3, 3.1, -size * 0.3);
-    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.02), mat(team));
-    flag.position.set(size * 0.3 + 0.27, 3.4, -size * 0.3);
-    g.add(tower, pole, flag);
-    if (faction === 'shadow') {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff6a00 }));
-      eye.position.set(size * 0.3, 2.85, -size * 0.3);
-      g.add(eye);
-    }
-  }
-  if (type === 'barracks') {
-    const banner = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.04), mat(team));
-    banner.position.set(0, h * 0.6, size * 0.46);
-    g.add(banner);
-  }
-  // fascia del colore della fazione alla base
-  const band = new THREE.Mesh(new THREE.BoxGeometry(size * 0.92, 0.12, size * 0.92), mat(team));
-  band.position.y = 0.06;
-  g.add(band);
-  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return g;
-}
-
-// --- Classi ---------------------------------------------------------------
 export class Unit {
   constructor(type, faction, x, z) {
     const st = unitDef(type, faction);
@@ -249,26 +92,30 @@ export class Unit {
     this.repath = 0;
     this.anim = Math.random() * 10;
 
+    this.spriteName = `unit_${faction}_${type}`;
+    const h = UNIT_LOOK[type][faction];
+    this.sprite = makeSprite(this.spriteName, { height: h, own: true });
+    this.sprite.center.set(0.5, 0.04);
+    this.baseW = this.sprite.scale.x;
+    this.facesLeft = FACES_LEFT.has(this.spriteName);
+    this.model = this.sprite;           // usato dalla simulazione per le animazioni
     this.mesh = new THREE.Group();
-    this.model = unitModel(type, faction);
-    this.ring = makeRing(0.38);
-    const tall = type === 'hero' ? 2.3 : type === 'knight' ? 2.2 : 1.8;
-    this.hpBar = makeHpBar(type === 'hero' ? 0.9 : 0.6, tall);
-    this.mesh.add(this.model, this.ring, this.hpBar);
+    this.ring = makeRing(type === 'knight' ? 0.55 : 0.4);
+    this.shadow = makeShadow(type === 'knight' ? 1.0 : 0.6);
+    this.hpBar = makeHpBar(type === 'hero' ? 0.9 : 0.6, screenUp(h + 0.12));
+    this.mesh.add(this.shadow, this.ring, this.sprite, this.hpBar);
     this.ranged = st.range > 2;
     this.buffUntil = 0; this.slowUntil = 0;
     if (type === 'hero') {
       this.level = 1; this.xp = 0;
       this.abilityCd = st.abilities.map(() => 0);
       this.levelSprite = makeLevelSprite();
-      this.levelSprite.position.y = tall + 0.35;
+      this.levelSprite.position.y = screenUp(h + 0.22);
       this.levelSprite.userData.draw(1);
       this.mesh.add(this.levelSprite);
       this.ring.scale.setScalar(1.3);
       // aura dorata sempre visibile sotto l'eroe
-      this.aura = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.6, 24).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: faction === 'men' ? 0xe0b43a : 0x9fe8ff, transparent: true, opacity: 0.55, depthWrite: false }));
-      this.aura.position.y = 0.02;
+      this.aura = groundDecal(new THREE.RingGeometry(0.45, 0.6, 28), faction === 'men' ? 0xe0b43a : 0x9fe8ff, 0.6);
       this.mesh.add(this.aura);
     }
     this.mesh.position.set(x, 0, z);
@@ -276,8 +123,25 @@ export class Unit {
   }
   get isMilitary() { return this.type !== 'villager'; }
   get isHero() { return this.type === 'hero'; }
+
+  // aggiorna posa: verso (specchiando lo sprite), passo e colpo
+  pose(dt) {
+    if (this.face !== undefined) {
+      const screenX = Math.sin(this.face - CAM_YAW);
+      if (Math.abs(screenX) > 0.15) this.lookRight = screenX > 0;
+    }
+    const flip = (this.lookRight === false) !== this.facesLeft;
+    this.sprite.scale.x = flip ? -this.baseW : this.baseW;
+    this.anim += dt * (this.moving ? 12 : 0);
+    this.sprite.position.y = this.moving ? Math.abs(Math.sin(this.anim)) * 0.07 : 0;
+    this.sprite.material.rotation = this.swing > 0 ? (flip ? 0.12 : -0.12) : 0;
+    // lampo rosso quando viene colpito
+    if (this.hitT > 0) { this.hitT -= dt; this.sprite.material.color.setRGB(1, 0.55, 0.55); }
+    else this.sprite.material.color.setRGB(1, 1, 1);
+  }
 }
 
+// --- edifici ---------------------------------------------------------------------
 export class Building {
   constructor(type, faction, cx, cz, built = true) {
     const st = BUILDINGS[type];
@@ -297,25 +161,32 @@ export class Building {
     this.radius = st.size * 0.5;
     if (st.farm) this.res = 'food';
 
+    let name = `bld_${faction}_${type}`;
+    if (name === 'bld_men_house' && Math.random() < 0.35) name = 'bld_men_house_alt';
+    this.spriteName = name;
+    // il rombo del disegno copre la pianta dell'edificio; lo sprite parte dal vertice anteriore
+    const width = st.size * Math.SQRT2 * (type === 'farm' ? 1.0 : 1.08);
+    this.sprite = this.place(makeSprite(name, { width, own: true }));
+    this.site = this.place(makeSprite('bld_construction', { width: st.size * Math.SQRT2 * 0.98 }));
     this.mesh = new THREE.Group();
-    this.model = buildingModel(type, faction);
-    this.ring = makeRing(st.size * 0.75);
-    this.hpBar = makeHpBar(st.size * 0.8, type === 'tc' ? 3.9 : 2.6);
-    this.scaffold = new THREE.Mesh(
-      new THREE.BoxGeometry(st.size * 0.95, 0.5, st.size * 0.95),
-      new THREE.MeshLambertMaterial({ color: 0xa0804f, wireframe: true })
-    );
-    this.scaffold.position.y = 0.25;
-    this.mesh.add(this.model, this.ring, this.hpBar, this.scaffold);
+    this.ring = makeRing(st.size * 0.78);
+    this.hpBar = makeHpBar(st.size * 0.8, screenUp(Math.max(0.6, this.sprite.scale.y - this.drop) + 0.15));
+    this.mesh.add(this.ring, this.site, this.sprite, this.hpBar);
     this.mesh.position.set(this.x, 0, this.z);
     this.mesh.userData.entity = this;
     this.updateConstructionLook();
   }
+  // lo sprite sta al centro dell'edificio (per l'ordine di disegno) ma il suo fondo coincide col vertice davanti
+  place(sp) {
+    this.drop = (this.size / Math.SQRT2) * SIN_P;
+    sp.center.set(0.5, -this.drop / sp.scale.y + 0.02);
+    return sp;
+  }
   get rect() { return { x0: this.cx, z0: this.cz, x1: this.cx + this.size - 1, z1: this.cz + this.size - 1 }; }
   updateConstructionLook() {
-    this.scaffold.visible = !this.built;
-    const p = this.built ? 1 : 0.15 + this.progress * 0.85;
-    this.model.scale.set(1, p, 1);
+    this.site.visible = !this.built;
+    this.sprite.visible = this.built || this.progress > 0.6;
+    this.sprite.material.opacity = this.built ? 1 : (this.progress - 0.6) / 0.4;
   }
 }
 

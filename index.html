@@ -7,7 +7,8 @@
   <meta name="theme-color" content="#14110f">
   <meta name="description" content="Ombra & Corona — RTS GPverse in un mondo fantasy dal sapore tolkieniano">
   <title>Ombra & Corona · GPverse</title>
-  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/sprites/emblem.webp" type="image/webp">
+  <link rel="alternate icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -29,8 +30,6 @@
     </header>
     <div id="camBtns">
       <button id="heroBtn" title="Eroe (R)">👑</button>
-      <button id="rotL" title="Ruota (Q)">⟲</button>
-      <button id="rotR" title="Ruota (E)">⟳</button>
       <button id="zoomIn" title="Avvicina">＋</button>
       <button id="zoomOut" title="Allontana">－</button>
       <button id="boxBtn" title="Selezione a riquadro">▢</button>
@@ -44,12 +43,13 @@
   <!-- Schermata iniziale -->
   <section id="start" class="screen">
     <div class="card">
+      <img class="emblem" src="assets/sprites/emblem.webp" alt="">
       <p class="brand">GPverse</p>
       <h1>Ombra <span>&</span> Corona</h1>
       <p class="tag">Le ere degli Uomini, degli Elfi e dei Nani contro l'Ombra</p>
       <div class="menu">
         <button id="play" class="primary">Partita libera</button>
-        <button disabled title="Arriva nella V.0.7.0">Campagna <small>in arrivo · V.0.7.0</small></button>
+        <button disabled title="Arriva nella V.0.8.0">Campagna <small>in arrivo · V.0.8.0</small></button>
         <label>Difficoltà
           <select id="difficulty">
             <option value="easy">Facile</option>

@@ -1,6 +1,7 @@
-// GPverse — Ombra & Corona — mappa e pathfinding (V.0.1.0)
+// GPverse — Ombra & Corona — mappa e pathfinding (grafica dipinta dalla V.0.3.0)
 import * as THREE from '../lib/three.module.js';
 import { MAP_SIZE, NODES } from './config.js';
+import { tex, makeSprite } from './assets.js';
 
 // --- PRNG con seed (mulberry32) -------------------------------------------
 export function makeRng(seed) {
@@ -127,40 +128,103 @@ export function findPath(grid, sx, sz, goal, maxIter = 6000) {
 // --- Costruzione della mappa ----------------------------------------------
 export const BASES = { men: { x: 9, z: 52 }, shadow: { x: 52, z: 9 } };
 
+const PX = 32; // pixel per cella nella texture del terreno
+
+// maschera morbida: f(x,z) tra 0 e 1, calcolata per cella e poi sfumata
+function maskCanvas(f) {
+  const c = document.createElement('canvas'); c.width = c.height = MAP_SIZE;
+  const g = c.getContext('2d'); const img = g.createImageData(MAP_SIZE, MAP_SIZE);
+  for (let z = 0; z < MAP_SIZE; z++) for (let x = 0; x < MAP_SIZE; x++) {
+    const i = (z * MAP_SIZE + x) * 4;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+    img.data[i + 3] = Math.round(Math.max(0, Math.min(1, f(x + 0.5, z + 0.5))) * 255);
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+function layer(size, image, tile, mask) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d');
+  g.fillStyle = g.createPattern(tileCanvas(image, tile), 'repeat');
+  g.fillRect(0, 0, size, size);
+  // seconda passata a scala diversa e semitrasparente: nasconde la ripetizione regolare
+  g.save();
+  g.globalAlpha = 0.45;
+  g.translate(tile * 0.37, tile * 0.61);
+  g.fillStyle = g.createPattern(tileCanvas(image, Math.round(tile * 1.37)), 'repeat');
+  g.fillRect(-tile, -tile, size + tile * 2, size + tile * 2);
+  g.restore();
+  if (mask) {
+    g.globalCompositeOperation = 'destination-in';
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(mask, 0, 0, size, size);
+  }
+  return c;
+}
+function tileCanvas(image, tile) {
+  const c = document.createElement('canvas'); c.width = c.height = tile;
+  c.getContext('2d').drawImage(image, 0, 0, tile, tile);
+  return c;
+}
+
+// terreno dipinto: prato, cenere verso l'Ombra, terra battuta intorno alle basi
+function paintGround(rng) {
+  const size = MAP_SIZE * PX;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d');
+  const noise = Array.from({ length: 12 }, () => ({ x: rng() * MAP_SIZE, z: rng() * MAP_SIZE, r: 3 + rng() * 6 }));
+  g.drawImage(layer(size, tex.ground_grass.image, 8 * PX), 0, 0);
+  const ash = (x, z) => {
+    const d = Math.hypot(x - BASES.shadow.x - 1.5, z - BASES.shadow.z - 1.5);
+    return ((x - z) / MAP_SIZE) * 1.6 + 0.05 + (d < 18 ? (18 - d) / 10 : 0) + Math.sin(x * 0.4) * Math.cos(z * 0.3) * 0.15;
+  };
+  g.drawImage(layer(size, tex.ground_ash.image, 8 * PX, maskCanvas(ash)), 0, 0);
+  const dirt = (x, z) => {
+    let v = 0;
+    for (const b of Object.values(BASES)) { const d = Math.hypot(x - b.x - 1.5, z - b.z - 1.5); v = Math.max(v, (5.5 - d) / 2.5); }
+    for (const n of noise) { const d = Math.hypot(x - n.x, z - n.z); v = Math.max(v, (n.r * 0.35 - d) / n.r * 0.8); }
+    return v;
+  };
+  g.drawImage(layer(size, tex.ground_dirt.image, 6 * PX, maskCanvas(dirt)), 0, 0);
+  // leggera variazione di luce per non far vedere la ripetizione
+  for (let i = 0; i < 40; i++) {
+    const x = rng() * size, y = rng() * size, r = (2 + rng() * 6) * PX;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    const dark = rng() < 0.5;
+    grd.addColorStop(0, dark ? 'rgba(0,20,0,0.12)' : 'rgba(255,240,200,0.08)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  // bordo della mappa sfumato
+  g.strokeStyle = 'rgba(20,25,10,0.5)'; g.lineWidth = PX; g.strokeRect(0, 0, size, size);
+  return c;
+}
+
 export function buildWorld(scene, seed) {
   const rng = makeRng(seed);
   const grid = new Grid(MAP_SIZE);
   const nodes = [];
 
-  // Terreno con colori per vertice
-  const geo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, MAP_SIZE, MAP_SIZE);
-  geo.rotateX(-Math.PI / 2);
-  geo.translate(MAP_SIZE / 2, 0, MAP_SIZE / 2);
-  const pos = geo.attributes.position;
-  const colors = new Float32Array(pos.count * 3);
-  const c = new THREE.Color();
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    const n = Math.sin(x * 0.21) * Math.cos(z * 0.17) * 0.5 + rng() * 0.25;
-    // verso la Terra Cinerea il terreno diventa grigio-cenere
-    const ash = Math.max(0, Math.min(1, ((x - z) / MAP_SIZE) * 1.4 + 0.1 - (Math.hypot(x - BASES.shadow.x, z - BASES.shadow.z) < 16 ? -0.4 : 0)));
-    c.setHSL(0.27 - n * 0.03, 0.45 - ash * 0.35, 0.33 + n * 0.06 - ash * 0.05);
-    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
-    pos.setY(i, (rng() - 0.5) * 0.06);
-  }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
-  ground.receiveShadow = true;
+  const groundTex = new THREE.CanvasTexture(paintGround(rng));
+  groundTex.colorSpace = THREE.SRGBColorSpace;
+  groundTex.anisotropy = 8;
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE).rotateX(-Math.PI / 2).translate(MAP_SIZE / 2, 0, MAP_SIZE / 2),
+    new THREE.MeshBasicMaterial({ map: groundTex })
+  );
   ground.name = 'ground';
   scene.add(ground);
 
-  // terre selvagge oltre il bordo della mappa
+  // terre selvagge oltre il bordo: prato più scuro
+  const wildTex = tex.ground_grass.clone();
+  wildTex.wrapS = wildTex.wrapT = THREE.RepeatWrapping;
+  wildTex.repeat.set(30, 30);
+  wildTex.needsUpdate = true;
   const wild = new THREE.Mesh(
-    new THREE.PlaneGeometry(260, 260).rotateX(-Math.PI / 2),
-    new THREE.MeshLambertMaterial({ color: 0x24301b })
+    new THREE.PlaneGeometry(240, 240).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: wildTex, color: 0x4a5a40 })
   );
-  wild.position.set(MAP_SIZE / 2, -0.08, MAP_SIZE / 2);
+  wild.position.set(MAP_SIZE / 2, -0.05, MAP_SIZE / 2);
   scene.add(wild);
 
   // aree di rispetto intorno alle basi
@@ -201,54 +265,31 @@ export function buildWorld(scene, seed) {
   for (let i = 0; i < 6; i++) addNode('stone', 33 + (i % 3), 26 + Math.floor(i / 3));
   for (let i = 0; i < 6; i++) addNode('bush', 26 + (i % 3), 34 + Math.floor(i / 3));
 
-  buildNodeMeshes(scene, nodes, rng);
+  buildNodeSprites(scene, nodes, rng);
   return { grid, nodes, ground };
 }
 
-// mesh delle risorse con InstancedMesh (veloce su smartphone)
-function buildNodeMeshes(scene, nodes, rng) {
-  const groups = { tree: [], bush: [], stone: [], gold: [] };
-  nodes.forEach(n => groups[n.type].push(n));
-
-  const make = (list, geo, color, scaleFn, yOff = 0) => {
-    if (!list.length) return null;
-    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color, flatShading: true }), list.length);
-    mesh.castShadow = true;
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
-    list.forEach((n, i) => {
-      const sc = scaleFn();
-      p.set(n.x + 0.5 + (rng() - 0.5) * 0.2, yOff * sc, n.z + 0.5 + (rng() - 0.5) * 0.2);
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng() * Math.PI * 2);
-      s.set(sc, sc, sc);
-      m.compose(p, q, s);
-      mesh.setMatrixAt(i, m);
-      n.inst = { mesh, i, matrix: m.clone() };
-    });
-    scene.add(mesh);
-    return mesh;
-  };
-
-  // alberi: chioma + tronco
-  const crown = new THREE.ConeGeometry(0.45, 1.3, 6); crown.translate(0, 1.15, 0);
-  const trunk = new THREE.CylinderGeometry(0.09, 0.12, 0.6, 5); trunk.translate(0, 0.3, 0);
-  make(groups.tree, crown, 0x2f6b34, () => 0.8 + rng() * 0.5);
-  const trunks = make(groups.tree, trunk, 0x5a3b22, () => 1);
-  // il tronco usa la stessa scala della chioma: ricopio la matrice della chioma
-  if (trunks) groups.tree.forEach((n, i) => { n.inst2 = { mesh: trunks, i }; trunks.setMatrixAt(i, n.inst.matrix); });
-
-  make(groups.bush, new THREE.DodecahedronGeometry(0.38).translate(0, 0.3, 0), 0x3f8a3a, () => 0.9 + rng() * 0.3);
-  // bacche rosse sopra i cespugli
-  const berries = make(groups.bush, new THREE.IcosahedronGeometry(0.4, 0).translate(0, 0.33, 0), 0xc23a4a, () => 0.75);
-  if (berries) groups.bush.forEach((n, i) => { n.inst2 = { mesh: berries, i }; });
-  make(groups.stone, new THREE.DodecahedronGeometry(0.45).translate(0, 0.25, 0), 0x8b8f94, () => 0.8 + rng() * 0.4);
-  make(groups.gold, new THREE.OctahedronGeometry(0.4).translate(0, 0.35, 0), 0xe0b43a, () => 0.8 + rng() * 0.3);
+// risorse come sprite dipinti
+const NODE_LOOK = {
+  tree:  () => ({ name: ['res_tree_1', 'res_tree_2', 'res_tree_3'][Math.floor(Math.random() * 3)], height: 2.1 }),
+  bush:  () => ({ name: 'res_bush', width: 0.95 }),
+  stone: () => ({ name: 'res_stone', width: 1.15 }),
+  gold:  () => ({ name: 'res_gold', width: 1.05 }),
+};
+function buildNodeSprites(scene, nodes, rng) {
+  for (const n of nodes) {
+    const look = NODE_LOOK[n.type]();
+    const k = 0.85 + rng() * 0.3;
+    const sp = makeSprite(look.name, look.width ? { width: look.width * k } : { height: look.height * k });
+    if (rng() < 0.5) sp.scale.x *= -1;
+    sp.center.set(0.5, 0.12);
+    sp.position.set(n.x + 0.5 + (rng() - 0.5) * 0.15, 0, n.z + 0.5 + (rng() - 0.5) * 0.15);
+    sp.userData.node = n;
+    n.sprite = sp;
+    scene.add(sp);
+  }
 }
 
 export function hideNode(node) {
-  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
-  for (const inst of [node.inst, node.inst2]) {
-    if (!inst) continue;
-    inst.mesh.setMatrixAt(inst.i, zero);
-    inst.mesh.instanceMatrix.needsUpdate = true;
-  }
+  if (node.sprite) { node.sprite.visible = false; node.sprite.parent?.remove(node.sprite); }
 }

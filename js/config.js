@@ -90,3 +90,7 @@ export const BUILDINGS = {
 
 export const POP_LIMIT = 50;
 export const AGGRO_RANGE = 6;
+
+// Camera isometrica fissa (dalla V.0.3.0): gli sprite sono disegnati da questa angolazione
+export const CAM_YAW = Math.PI / 4;
+export const CAM_PITCH = 0.55; // circa 31° sopra l'orizzonte: rombi del terreno in proporzione 2:1

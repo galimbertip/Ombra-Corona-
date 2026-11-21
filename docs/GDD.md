@@ -1,6 +1,6 @@
 # Ombra & Corona — Game Design Document
 
-GPverse · copia del documento di design (originale nei Docs di Claude) · aggiornato alla V.0.2.0
+GPverse · copia del documento di design (originale nei Docs di Claude) · aggiornato alla V.0.3.0
 
 ## Visione
 Ombra & Corona è un RTS 3D leggero ambientato in un mondo fantasy dal sapore tolkieniano, con nomi originali.
@@ -66,7 +66,7 @@ Le razze generiche (elfi, nani, orchi, troll, draghi) restano tali.
 ## Tecnica
 | Area | Scelta |
 | --- | --- |
-| Rendering | Three.js, low-poly, camera isometrica rotabile |
+| Rendering | Three.js con sprite dipinti (Arena AI), camera isometrica fissa |
 | Mappa | Griglia a celle + regioni dei territori |
 | Movimento | A* su griglia (+ flow field per i gruppi in futuro) |
 | Nebbia di guerra | Texture di visibilità (dalla V.0.2.0 in poi) |
@@ -78,11 +78,11 @@ Le razze generiche (elfi, nani, orchi, troll, draghi) restano tali.
 ## Roadmap
 1. **V.0.1.0 — Prototipo:** una mappa, Uomini contro Ombra, raccolta, costruzione, combattimento base, IA semplice ✅
 2. **V.0.2.0 — Ere ed eroi:** le tre ere, un eroe per fazione con livelli e abilità ✅ (gli oggetti degli eroi arrivano più avanti)
-3. **V.0.3.0 — Territori e stagioni**
-4. **V.0.4.0 — Quattro fazioni:** arrivano Elfi e Nani
-5. **V.0.5.0 — Creature e Corona**
-6. **V.0.6.0 — Open world**
-7. **V.0.7.0 — Prima campagna** (Uomini)
-8. **V.0.8.0 — Campagne complete**
-9. **V.0.9.0 — Rifinitura**
+3. **V.0.3.0 — Nuova grafica:** sprite dipinti con Arena AI, visuale isometrica fissa ✅
+4. **V.0.4.0 — Territori e stagioni**
+5. **V.0.5.0 — Quattro fazioni:** arrivano Elfi e Nani
+6. **V.0.6.0 — Creature e Corona**
+7. **V.0.7.0 — Open world**
+8. **V.0.8.0 — Prima campagna** (Uomini)
+9. **V.0.9.0 — Campagne complete e rifinitura**
 10. **V.1.0.0 — Uscita** su GitHub Pages e nella Sala Giochi Arcade

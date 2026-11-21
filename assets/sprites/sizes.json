@@ -1,0 +1,174 @@
+{
+ "ability_bolt": [
+  160,
+  160
+ ],
+ "ability_cry": [
+  160,
+  160
+ ],
+ "ability_king": [
+  160,
+  160
+ ],
+ "ability_slam": [
+  160,
+  160
+ ],
+ "ability_storm": [
+  160,
+  160
+ ],
+ "ability_voice": [
+  160,
+  160
+ ],
+ "bld_construction": [
+  560,
+  586
+ ],
+ "bld_men_barracks": [
+  560,
+  405
+ ],
+ "bld_men_farm": [
+  560,
+  478
+ ],
+ "bld_men_house": [
+  560,
+  560
+ ],
+ "bld_men_house_alt": [
+  560,
+  521
+ ],
+ "bld_men_tc": [
+  560,
+  477
+ ],
+ "bld_shadow_barracks": [
+  560,
+  497
+ ],
+ "bld_shadow_farm": [
+  560,
+  528
+ ],
+ "bld_shadow_house": [
+  560,
+  337
+ ],
+ "bld_shadow_tc": [
+  560,
+  628
+ ],
+ "emblem": [
+  512,
+  491
+ ],
+ "ground_ash": [
+  512,
+  512
+ ],
+ "ground_dirt": [
+  512,
+  512
+ ],
+ "ground_grass": [
+  512,
+  512
+ ],
+ "icon_food": [
+  96,
+  74
+ ],
+ "icon_gold": [
+  96,
+  78
+ ],
+ "icon_pop": [
+  96,
+  71
+ ],
+ "icon_stone": [
+  96,
+  68
+ ],
+ "icon_wood": [
+  96,
+  71
+ ],
+ "res_bush": [
+  256,
+  225
+ ],
+ "res_gold": [
+  256,
+  239
+ ],
+ "res_stone": [
+  256,
+  162
+ ],
+ "res_tree_1": [
+  192,
+  256
+ ],
+ "res_tree_2": [
+  245,
+  256
+ ],
+ "res_tree_3": [
+  140,
+  256
+ ],
+ "title_background": [
+  1920,
+  1080
+ ],
+ "unit_men_archer": [
+  201,
+  320
+ ],
+ "unit_men_hero": [
+  205,
+  320
+ ],
+ "unit_men_hero_alt": [
+  156,
+  320
+ ],
+ "unit_men_knight": [
+  278,
+  320
+ ],
+ "unit_men_soldier": [
+  140,
+  320
+ ],
+ "unit_men_villager": [
+  206,
+  320
+ ],
+ "unit_shadow_archer": [
+  352,
+  320
+ ],
+ "unit_shadow_hero": [
+  184,
+  320
+ ],
+ "unit_shadow_knight": [
+  368,
+  320
+ ],
+ "unit_shadow_soldier": [
+  363,
+  320
+ ],
+ "unit_shadow_villager": [
+  225,
+  320
+ ]
+}

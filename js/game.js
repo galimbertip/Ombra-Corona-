@@ -6,7 +6,7 @@ import { Unit, Building } from './entities.js';
 import * as THREE from '../lib/three.module.js';
 
 const ARROW_GEO = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 4).rotateX(Math.PI / 2);
-const ARROW_MAT = new THREE.MeshBasicMaterial({ color: 0x2b1d0e });
+const ARROW_MAT = new THREE.MeshBasicMaterial({ color: 0x2b1d0e, depthTest: false });
 
 const dist = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
 
@@ -356,6 +356,7 @@ export class Game {
   damage(target, amount, attacker) {
     if (!target.alive) return;
     target.hp -= amount;
+    if (target.kind === 'unit') target.hitT = 0.15;
     if (target.kind === 'unit' && attacker && target.alive) {
       // reazione: i militari inattivi rispondono, i contadini scappano verso casa
       if (target.isMilitary && (target.state === 'idle' || target.state === 'move' && target.faction === 'shadow')) this.orderAttack([target], attacker);
@@ -437,6 +438,7 @@ export class Game {
 
   shoot(from, target, damage) {
     const m = new THREE.Mesh(ARROW_GEO, ARROW_MAT);
+    m.renderOrder = 3;
     const y0 = from.kind === 'unit' ? 1.0 : 2.6;
     m.position.set(from.x, y0, from.z);
     this.scene.add(m);
@@ -551,11 +553,7 @@ export class Game {
     }
     if (u.swing > 0) u.swing -= dt;
     u.mesh.position.set(u.x, 0, u.z);
-    if (u.face !== undefined) u.model.rotation.y = u.face;
-    // piccola animazione: saltella quando cammina, si china quando lavora
-    u.anim += dt * (u.moving ? 12 : 0);
-    u.model.position.y = u.moving ? Math.abs(Math.sin(u.anim)) * 0.06 : 0;
-    u.model.rotation.x = u.swing > 0 ? 0.25 : 0;
+    u.pose(dt);
   }
 
   updateGather(u, dt) {
