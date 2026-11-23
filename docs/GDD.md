@@ -1,6 +1,6 @@
 # Ombra & Corona — Game Design Document
 
-GPverse · copia del documento di design (originale nei Docs di Claude) · aggiornato alla V.0.5.0
+GPverse · copia del documento di design (originale nei Docs di Claude) · aggiornato alla V.0.6.0
 
 ## Visione
 Ombra & Corona è un RTS 3D leggero ambientato in un mondo fantasy dal sapore tolkieniano, con nomi originali.
@@ -81,7 +81,7 @@ Le razze generiche (elfi, nani, orchi, troll, draghi) restano tali.
 3. **V.0.3.0 — Nuova grafica:** sprite dipinti con Arena AI, visuale isometrica fissa ✅
 4. **V.0.4.0 — Fazioni e mappe casuali:** scelta della fazione, mappe generate a caso, tre tipi di mappa ✅
 5. **V.0.5.0 — Territori e stagioni:** regioni con bonus e colonizzazione, quattro stagioni con inverno ✅
-6. **V.0.6.0 — Quattro fazioni:** arrivano Elfi e Nani
+6. **V.0.6.0 — Quattro fazioni:** arrivano Elfi e Nani, con stili di gioco diversi ✅
 7. **V.0.7.0 — Creature e Corona**
 8. **V.0.8.0 — Prima campagna** (Uomini) e mappe disegnate a mano
 9. **V.0.9.0 — Campagne complete e rifinitura**

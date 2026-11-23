@@ -170,5 +170,77 @@
  "unit_shadow_villager": [
   225,
   320
+ ],
+ "bld_dwarves_barracks": [
+  560,
+  537
+ ],
+ "bld_dwarves_farm": [
+  560,
+  408
+ ],
+ "bld_dwarves_house": [
+  560,
+  555
+ ],
+ "bld_dwarves_tc": [
+  560,
+  600
+ ],
+ "bld_elves_barracks": [
+  560,
+  568
+ ],
+ "bld_elves_farm": [
+  560,
+  416
+ ],
+ "bld_elves_house": [
+  560,
+  599
+ ],
+ "bld_elves_tc": [
+  560,
+  607
+ ],
+ "unit_dwarves_archer": [
+  287,
+  320
+ ],
+ "unit_dwarves_hero": [
+  295,
+  320
+ ],
+ "unit_dwarves_knight": [
+  186,
+  320
+ ],
+ "unit_dwarves_soldier": [
+  212,
+  320
+ ],
+ "unit_dwarves_villager": [
+  189,
+  320
+ ],
+ "unit_elves_archer": [
+  263,
+  320
+ ],
+ "unit_elves_hero": [
+  206,
+  320
+ ],
+ "unit_elves_knight": [
+  191,
+  320
+ ],
+ "unit_elves_soldier": [
+  190,
+  320
+ ],
+ "unit_elves_villager": [
+  162,
+  320
  ]
 }

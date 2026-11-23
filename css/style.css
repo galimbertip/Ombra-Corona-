@@ -212,3 +212,8 @@ small .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 1px;
 #season.autumn { border-color: #d98a3a; }
 #season.starving { background: #5a1a12; border-color: #ff7a6a; }
 @media (max-width: 720px) { #season { font-size: 11px; padding: 1px 6px; } }
+
+/* quattro popoli (V.0.6.0) */
+.faction-pick button img { height: 64px; }
+.faction-pick button small { line-height: 1.2; }
+.card { max-height: 96vh; overflow-y: auto; }

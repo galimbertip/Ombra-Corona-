@@ -10,6 +10,16 @@ A ogni rilascio aggiorna **entrambi**.
 
 ---
 
+## V.0.6.0 — Elfi e Nani · 2026-11-23
+- Due popoli nuovi, con la grafica generata con Arena AI: Elfi del Bosco d'Oro e Nani di Khazrun
+- Elfi: unità più resistenti ma più costose, arcieri con più gittata e danno, Arborei lenti ma devastanti contro gli edifici, +15% legno e +10% cibo
+- Nani: tutto più robusto (unità +20% vita, edifici +30%) ma più lento, balestrieri potenti, +25% oro e pietra
+- Uomini: cavalieri più forti. Ombra: unità più economiche e veloci da addestrare, ma più fragili
+- Nuovi eroi: la Signora del Bosco (Luce Stellare, Pioggia di Frecce, Canto del Bosco) e il Re sotto la Montagna (Colpo di Martello, Muro di Scudi, Furia della Forgia)
+- Menu: quattro popoli tra cui scegliere, ognuno con il suo stile, e scelta dell'avversario (o casuale)
+- IA più furba: prima pensa all'economia, poi risparmia per cambiare era
+- Raccolta un po' più veloce, consumo invernale più leggero e Seconda Era meno costosa
+
 ## V.0.5.0 — Territori e stagioni · 2026-11-22
 - Territori in stile Northgard: la mappa è divisa in circa 20 regioni con un nome, confini disegnati sul terreno e colori dei popoli
 - Si costruisce solo nelle proprie regioni; quelle confinanti si colonizzano con un contadino (pulsante Colonizza o tasto T), pagando cibo

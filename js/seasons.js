@@ -12,7 +12,7 @@ export const SEASONS = [
   { id: 'winter', name: 'Inverno', icon: '❄️', len: 60, food: 0.5, speed: 0.8, tint: [0.86, 0.91, 1], upkeep: true,
     news: 'Inverno: cibo dimezzato, marce lente e ogni abitante consuma cibo' },
 ];
-export const UPKEEP_EVERY = 10; // secondi: ogni unità mangia 1 cibo
+export const UPKEEP_EVERY = 15; // secondi: ogni unità mangia 1 cibo
 
 export class Seasons {
   constructor() { this.i = 0; this.t = 0; this.year = 1; }

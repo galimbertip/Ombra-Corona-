@@ -529,7 +529,7 @@ function refreshPanel(force = false) {
     if (hero) {
       HEROES[PLAYER].abilities.forEach((a, i) => {
         const why = game.abilityReady(hero, i);
-        buttons.push({ id: 'ab-' + i, label: a.name, sub: why || (isTouch ? 'Pronta' : a.desc), key: String(i + 1), ok: !why, cls: 'ability', pic: url('ability_' + a.id) });
+        buttons.push({ id: 'ab-' + i, label: a.name, sub: why || (isTouch ? 'Pronta' : a.desc), key: String(i + 1), ok: !why, cls: 'ability', pic: url(a.icon || 'ability_' + a.id) });
       });
     }
     if (units.length) buttons.push({ id: 'stop', label: 'Ferma', sub: '', ok: true });
@@ -770,10 +770,13 @@ function startGame() {
   const difficulty = $('#difficulty').value;
   PLAYER = selectedFaction;
   const map = $('#mapSel').value;
-  progress.faction = PLAYER; progress.map = map; saveProgress(progress);
+  const others = Object.keys(FACTIONS).filter(f => f !== PLAYER);
+  const enemySel = $('#enemySel').value;
+  const enemy = others.includes(enemySel) ? enemySel : others[Math.floor(Math.random() * others.length)];
+  progress.faction = PLAYER; progress.map = map; progress.enemy = enemySel; saveProgress(progress);
   if (game) disposeScene();
   makeScene();
-  game = new Game(scene, { difficulty, player: PLAYER, map });
+  game = new Game(scene, { difficulty, player: PLAYER, enemy, map });
   ai = new AI(game, game.enemy);
   game.on('message', toast);
   game.on('ability', abilityEffect);
@@ -806,7 +809,7 @@ function startGame() {
   $('#start').hidden = true; $('#over').hidden = true; $('#hud').hidden = false;
   refreshPanel(true);
   toast(`${game.map.name}: raccogli risorse, costruisci case e una caserma. Distruggi la base nemica (${FACTIONS[game.enemy].names.tc})!`);
-  $('#mapInfo').textContent = `${game.map.name} · seme ${game.seed} · ${FACTIONS[PLAYER].name}`;
+  $('#mapInfo').textContent = `${game.map.name} · seme ${game.seed} · ${FACTIONS[PLAYER].name} contro ${FACTIONS[game.enemy].name}`;
 }
 function disposeScene() {
   resetMaterials();
@@ -822,15 +825,23 @@ let selectedFaction = progress.faction || 'men';
 function renderFactionPick() {
   $('#factionPick').innerHTML = Object.entries(FACTIONS).map(([id, f]) => `
     <button data-f="${id}" class="${id === selectedFaction ? 'on' : ''}" style="--fc:#${f.color.toString(16).padStart(6, '0')}">
-      <img src="${url(`unit_${id}_hero`)}" alt=""><b>${f.name}</b><small>Eroe: ${f.names.hero}</small>
+      <img src="${url(`unit_${id}_hero`)}" alt=""><b>${f.name}</b><small>${f.style}</small>
     </button>`).join('');
 }
 $('#factionPick').addEventListener('click', ev => {
   const b = ev.target.closest('button[data-f]');
   if (!b) return;
-  selectedFaction = b.dataset.f; renderFactionPick();
+  selectedFaction = b.dataset.f; renderFactionPick(); renderEnemyPick();
 });
+// avversario: casuale o un popolo preciso (diverso dal tuo)
+function renderEnemyPick() {
+  const keep = $('#enemySel').value || progress.enemy || 'casuale';
+  $('#enemySel').innerHTML = `<option value="casuale">Casuale</option>` +
+    Object.entries(FACTIONS).filter(([id]) => id !== selectedFaction).map(([id, f]) => `<option value="${id}">${f.name}</option>`).join('');
+  $('#enemySel').value = [...$('#enemySel').options].some(o => o.value === keep) ? keep : 'casuale';
+}
 renderFactionPick();
+renderEnemyPick();
 $('#mapSel').innerHTML = MAPS.map(m => `<option value="${m.id}">${m.name}</option>`).join('') + `<option value="${RANDOM_MAP}">Casuale</option>`;
 $('#mapSel').value = progress.map || 'valle';
 const mapDesc = () => { const m = MAPS.find(x => x.id === $('#mapSel').value); $('#mapDesc').textContent = m ? m.desc : 'Un tipo di mappa a sorpresa'; };

@@ -1,6 +1,6 @@
 // GPverse — Ombra & Corona — unità ed edifici (sprite dipinti dalla V.0.3.0)
 import * as THREE from '../lib/three.module.js';
-import { unitDef, BUILDINGS, CAM_YAW, CAM_PITCH } from './config.js';
+import { unitDef, BUILDINGS, FACTION_MODS, CAM_YAW, CAM_PITCH } from './config.js';
 import { makeSprite, TINT } from './assets.js';
 
 let NEXT_ID = 1;
@@ -63,13 +63,13 @@ export function makeLevelSprite() {
 // --- aspetto delle unità -----------------------------------------------------------
 // altezza dello sprite (in celle) e verso in cui guarda il disegno originale
 const UNIT_LOOK = {
-  villager: { men: 1.35, shadow: 1.25 },
-  soldier:  { men: 1.65, shadow: 1.55 },
-  archer:   { men: 1.5,  shadow: 1.4 },
-  knight:   { men: 1.9,  shadow: 1.7 },
-  hero:     { men: 1.9,  shadow: 2.0 },
+  villager: { men: 1.35, shadow: 1.25, elves: 1.45, dwarves: 1.15 },
+  soldier:  { men: 1.65, shadow: 1.55, elves: 1.75, dwarves: 1.35 },
+  archer:   { men: 1.5,  shadow: 1.4,  elves: 1.5,  dwarves: 1.2 },
+  knight:   { men: 1.9,  shadow: 1.7,  elves: 2.5,  dwarves: 1.75 },
+  hero:     { men: 1.9,  shadow: 2.0,  elves: 2.0,  dwarves: 1.55 },
 };
-const FACES_LEFT = new Set(['unit_shadow_soldier']);
+const FACES_LEFT = new Set(['unit_shadow_soldier', 'unit_dwarves_villager', 'unit_dwarves_hero']);
 
 export class Unit {
   constructor(type, faction, x, z) {
@@ -105,6 +105,7 @@ export class Unit {
     this.hpBar = makeHpBar(type === 'hero' ? 0.9 : 0.6, screenUp(h + 0.12));
     this.mesh.add(this.shadow, this.ring, this.sprite, this.hpBar);
     this.ranged = st.range > 2;
+    this.siege = st.siege || 1;
     this.buffUntil = 0; this.slowUntil = 0;
     if (type === 'hero') {
       this.level = 1; this.xp = 0;
@@ -152,8 +153,8 @@ export class Building {
     this.size = st.size;
     this.cx = cx; this.cz = cz;                // cella in alto a sinistra
     this.x = cx + st.size / 2; this.z = cz + st.size / 2;
-    this.maxHp = st.hp;
-    this.hp = built ? st.hp : 1;
+    this.maxHp = Math.round(st.hp * (FACTION_MODS[faction]?.buildingHp || 1));
+    this.hp = built ? this.maxHp : 1;
     this.built = built;
     this.progress = built ? 1 : 0;
     this.alive = true;

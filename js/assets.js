@@ -7,11 +7,12 @@ export const url = (name) => `${DIR}${name}.webp`;
 export const tex = {};
 export const sizes = {};
 
+// unità ed edifici di ogni popolo (dalla V.0.6.0 sono quattro)
+const PEOPLES = ['men', 'shadow', 'elves', 'dwarves'];
 const SPRITES = [
-  'unit_men_villager', 'unit_men_soldier', 'unit_men_archer', 'unit_men_knight', 'unit_men_hero',
-  'unit_shadow_villager', 'unit_shadow_soldier', 'unit_shadow_archer', 'unit_shadow_knight', 'unit_shadow_hero',
-  'bld_men_tc', 'bld_men_house', 'bld_men_house_alt', 'bld_men_barracks', 'bld_men_farm',
-  'bld_shadow_tc', 'bld_shadow_house', 'bld_shadow_barracks', 'bld_shadow_farm', 'bld_construction',
+  ...PEOPLES.flatMap(f => ['villager', 'soldier', 'archer', 'knight', 'hero'].map(t => `unit_${f}_${t}`)),
+  ...PEOPLES.flatMap(f => ['tc', 'house', 'barracks', 'farm'].map(t => `bld_${f}_${t}`)),
+  'bld_men_house_alt', 'bld_construction',
   'res_tree_1', 'res_tree_2', 'res_tree_3', 'res_bush', 'res_stone', 'res_gold',
   'ground_grass', 'ground_ash', 'ground_dirt',
 ];

@@ -66,11 +66,11 @@ export class AI {
     // 2. nuovi contadini
     const era = g.players[this.f].era;
     const advancing = tc.queue.some(q => q.type === 'era');
-    if (vill.length < this.p.villagers && tc.queue.length < 2 && !advancing) g.train(tc, 'villager');
-
-    // 2b. avanzamento di era (risparmia risorse quando è il momento)
+    // 2b. avanzamento di era: quando è il momento smette di spendere cibo e oro e risparmia
     const next = ERAS[era + 1];
     const wantEra = next && !advancing && (era === 1 ? vill.length >= this.p.era2 : vill.length >= this.p.era3 && army.length >= 3);
+    const saving = wantEra && !g.canAfford(this.f, next.cost);
+    if (vill.length < this.p.villagers && tc.queue.length < 2 && !advancing && !(saving && vill.length >= this.p.era2)) g.train(tc, 'villager');
     if (wantEra && g.canAfford(this.f, next.cost) && tc.queue.length === 0) g.train(tc, 'era');
 
     // 2c. eroe: evocazione o rianimazione
@@ -105,7 +105,7 @@ export class AI {
     const colonizing = vill.some(v => v.state === 'colonize');
     const owned = g.territory.owned(this.f).length;
     const cost = g.territory.colonizeCost(this.f);
-    if (!colonizing && vill.length >= 6 + owned && res.food >= cost.food + 80 && g.seasons.current.id !== 'winter') {
+    if (!colonizing && !saving && vill.length >= 6 + owned && res.food >= cost.food + 80 && g.seasons.current.id !== 'winter') {
       const options = g.territory.regions.filter(r => !g.colonizeBlock(this.f, r));
       const score = r => (r.bonus === 'pianura' ? 2 : 4) - Math.hypot(r.x - tc.x, r.z - tc.z) / 12 + (r.bonus === 'miniera' && era >= 2 ? 2 : 0);
       options.sort((a, b) => score(b) - score(a));
@@ -116,7 +116,8 @@ export class AI {
     }
 
     // 6. soldati: mescola le unità sbloccate dall'era (se si risparmia per l'era, si addestra meno)
-    if (!(wantEra && !g.canAfford(this.f, next.cost) && army.length >= 3)) {
+    // prima l'economia: soldati solo con abbastanza contadini (o dalla Seconda Era)
+    if (!(saving && army.length >= 2) && (vill.length >= 12 || era >= 2)) {
       const mix = era >= 3 ? ['soldier', 'archer', 'knight', 'archer'] : era >= 2 ? ['soldier', 'archer', 'soldier'] : ['soldier'];
       for (const b of barracks) {
         if (!b.built || b.queue.length >= 2) continue;

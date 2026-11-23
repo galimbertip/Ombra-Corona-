@@ -1,5 +1,5 @@
 // GPverse — Ombra & Corona — simulazione di gioco (aggiornata alla V.0.2.0)
-import { BUILDINGS, FACTIONS, START_RES, GATHER_RATE, CARRY_MAX, POP_LIMIT, AGGRO_RANGE, RES,
+import { FACTION_MODS, BUILDINGS, FACTIONS, START_RES, GATHER_RATE, CARRY_MAX, POP_LIMIT, AGGRO_RANGE, RES,
   unitDef, HEROES, HERO_REVIVE, HERO_PER_LEVEL, XP_TABLE, XP_VALUE, XP_RANGE, ERAS } from './config.js';
 import { buildWorld, findPath, hideNode, makeRng } from './world.js';
 import { Territory, BONUS } from './territory.js';
@@ -32,12 +32,12 @@ export function reach(u, t) {
 }
 
 export class Game {
-  constructor(scene, { seed = Math.floor(Math.random() * 1e6), difficulty = 'normal', player = 'men', map = 'valle' } = {}) {
+  constructor(scene, { seed = Math.floor(Math.random() * 1e6), difficulty = 'normal', player = 'men', enemy = null, map = 'valle' } = {}) {
     this.scene = scene;
     this.seed = seed;
     this.difficulty = difficulty;
     this.player = player;
-    this.enemy = player === 'men' ? 'shadow' : 'men';
+    this.enemy = enemy && enemy !== player ? enemy : (player === 'shadow' ? 'men' : 'shadow');
     this.map = pickMap(map, () => (seed % 997) / 997);
     this.time = 0;
     this.over = null;              // 'win' | 'lose'
@@ -135,7 +135,7 @@ export class Game {
       const hd = this.players[b.faction].heroData;
       if (hd) { u.xp = hd.xp; this.applyLevel(u, hd.level, true); }
       this.players[b.faction].heroData = { level: u.level, xp: u.xp, summoned: true };
-      this.msg(b.faction, `${FACTIONS[b.faction].names.hero} è sceso in campo!`);
+      this.msg(b.faction, `${FACTIONS[b.faction].names.hero} ${FACTIONS[b.faction].names.hero.startsWith('la ') ? 'è scesa' : 'è sceso'} in campo!`);
     }
     if (b.rally) this.orderMove([u], b.rally.x, b.rally.z);
     return u;
@@ -268,6 +268,34 @@ export class Game {
         this.enemiesNear(h.x, h.z, h.faction, 4).forEach(e => this.damage(e, 50 + lv * 4, h));
         this.alliesNear(h.x, h.z, h.faction, 6).forEach(u => { u.buffUntil = this.time + 8; });
         this.emit('ability', h, a, 4, 0x6b8cff); break;
+      // Elfi: la Signora del Bosco
+      case 'star':
+        this.alliesNear(h.x, h.z, h.faction, 6).forEach(u => { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.4); });
+        this.emit('ability', h, a, 6, 0xfff4b0); break;
+      case 'arrows': {
+        const foes = this.enemiesNear(h.x, h.z, h.faction, 7).sort((p, q) => dist(p.x, p.z, h.x, h.z) - dist(q.x, q.z, h.x, h.z));
+        if (!foes.length) { this.msg(h.faction, 'Nessun nemico a portata'); return false; }
+        const c = foes[0];
+        this.enemiesNear(c.x, c.z, h.faction, 2.5).forEach(e => this.damage(e, 30 + lv * 5, h));
+        this.emit('ability', h, a, 2.5, 0x9be38a, c); break;
+      }
+      case 'forest':
+        this.alliesNear(h.x, h.z, h.faction, 7).forEach(u => { u.buffUntil = this.time + 10; });
+        this.enemiesNear(h.x, h.z, h.faction, 7).forEach(u => { u.slowUntil = this.time + 8; });
+        this.emit('ability', h, a, 7, 0x2e8b57); break;
+      // Nani: il Re sotto la Montagna
+      case 'quake': {
+        const foes = this.enemiesNear(h.x, h.z, h.faction, 2.8);
+        if (!foes.length) { this.msg(h.faction, 'Nessun nemico vicino'); return false; }
+        foes.forEach(e => { this.damage(e, 40 + lv * 5, h); e.slowUntil = this.time + 3; });
+        this.emit('ability', h, a, 2.8, 0xc8732a); break;
+      }
+      case 'shield':
+        this.alliesNear(h.x, h.z, h.faction, 6).forEach(u => { u.armorUntil = this.time + 10; });
+        this.emit('ability', h, a, 6, 0xb8c4d0); break;
+      case 'forge':
+        this.alliesNear(h.x, h.z, h.faction, 8).forEach(u => { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.3); u.buffUntil = this.time + 12; });
+        this.emit('ability', h, a, 8, 0xff8a2a); break;
     }
     h.abilityCd[i] = a.cd;
     h.swing = 0.4;
@@ -403,6 +431,8 @@ export class Game {
   // ---- danni -------------------------------------------------------------
   damage(target, amount, attacker) {
     if (!target.alive) return;
+    if (target.armorUntil > this.time) amount *= 0.5;                       // Muro di Scudi
+    if (target.kind === 'building' && attacker && attacker.siege > 1) amount *= attacker.siege; // Arborei contro le mura
     target.hp -= amount;
     if (target.kind === 'unit') target.hitT = 0.15;
     if (target.kind === 'unit' && attacker && target.alive) {
@@ -420,8 +450,8 @@ export class Game {
     this.giveXp(e);
     if (e.isHero) {
       this.players[e.faction].heroData = { level: e.level, xp: e.xp, summoned: true };
-      this.msg(e.faction, `${FACTIONS[e.faction].names.hero} è caduto! Puoi rianimarlo dal centro.`);
-      if (e.faction !== this.player) this.msg(this.player, `${FACTIONS[e.faction].names.hero} è caduto!`);
+      this.msg(e.faction, `${FACTIONS[e.faction].names.hero} ${e.faction === 'elves' ? 'è caduta' : 'è caduto'}! Puoi rianimare l'eroe dal centro.`);
+      if (e.faction !== this.player) this.msg(this.player, `${FACTIONS[e.faction].names.hero} ${e.faction === 'elves' ? 'è caduta' : 'è caduto'}!`);
     }
     if (e.kind === 'building') {
       this.grid.release(e.cx, e.cz, e.size, e.size);
@@ -442,6 +472,7 @@ export class Game {
   gatherMul(f, res, x, z) {
     let m = this.territory.gatherMul(f, res, x, z);
     if (res === 'food') m *= this.seasons.current.food;
+    m *= FACTION_MODS[f]?.gather?.[res] || 1;
     if (this.players[f].starving) m *= 0.7;
     return m;
   }

@@ -172,8 +172,9 @@ function paintGround(rng, bases) {
   const g = c.getContext('2d');
   const noise = Array.from({ length: 12 }, () => ({ x: rng() * MAP_SIZE, z: rng() * MAP_SIZE, r: 3 + rng() * 6 }));
   g.drawImage(layer(size, tex.ground_grass.image, 8 * PX), 0, 0);
-  const sh = bases.shadow, mn = bases.men;
-  const ash = (x, z) => {
+  // la cenere segue l'Ombra (se c'è in partita)
+  const sh = bases.shadow || { x: -999, z: -999 }, mn = Object.entries(bases).find(([f]) => f !== 'shadow')[1];
+  const ash = !bases.shadow ? () => 0 : (x, z) => {
     const ds = Math.hypot(x - sh.x - 1.5, z - sh.z - 1.5), dm = Math.hypot(x - mn.x - 1.5, z - mn.z - 1.5);
     const t = dm / (dm + ds + 0.001);                 // 0 vicino agli Uomini, 1 vicino all'Ombra
     return (t - 0.45) * 3 + (ds < 18 ? (18 - ds) / 10 : 0) + Math.sin(x * 0.4) * Math.cos(z * 0.3) * 0.15;

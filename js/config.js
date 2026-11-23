@@ -1,4 +1,4 @@
-// GPverse — Ombra & Corona — dati di gioco (aggiornato alla V.0.2.0)
+// GPverse — Ombra & Corona — dati di gioco (aggiornato alla V.0.6.0)
 
 export const MAP_SIZE = 64;          // celle per lato
 export const CELL = 1;               // dimensione cella in unità mondo
@@ -17,7 +17,7 @@ export const NODES = {
   gold:  { res: 'gold',  amount: 250, label: 'Miniera d\'oro' },
 };
 
-export const GATHER_RATE = 1.0;   // unità di risorsa al secondo
+export const GATHER_RATE = 1.3;   // unità di risorsa al secondo
 export const CARRY_MAX = 10;
 
 // Fazioni
@@ -34,6 +34,31 @@ export const FACTIONS = {
     names: { villager: 'Schiavo Orco', soldier: 'Orco Nero', archer: 'Arciere Orco', knight: 'Cavaliere di Lupi', hero: 'il Bianco Traditore',
              tc: 'Fortezza', house: 'Tana', barracks: 'Fossa di Guerra', farm: 'Recinto' },
   },
+  elves: {
+    name: 'Elfi del Bosco d\'Oro',
+    color: 0x2e8b57,
+    style: 'Pochi ma letali: arcieri più precisi, Arborei che abbattono le mura',
+    names: { villager: 'Raccoglitore Elfico', soldier: 'Guardia del Bosco', archer: 'Arciere Elfico', knight: 'Arboreo', hero: 'la Signora del Bosco',
+             tc: 'Palazzo d\'Oro', house: 'Dimora', barracks: 'Sala delle Lame', farm: 'Frutteto' },
+  },
+  dwarves: {
+    name: 'Nani di Khazrun',
+    color: 0xc8732a,
+    style: 'Resistenti e lenti: ottimi minatori, edifici e guerrieri robustissimi',
+    names: { villager: 'Minatore', soldier: 'Guerriero di Khazrun', archer: 'Balestriere', knight: 'Cavaliere d\'Ariete', hero: 'il Re sotto la Montagna',
+             tc: 'Porta della Montagna', house: 'Casa di Pietra', barracks: 'Forgia di Guerra', farm: 'Funghiera' },
+  },
+};
+FACTIONS.men.style = 'Equilibrati: buona cavalleria, nessun punto debole';
+FACTIONS.shadow.style = 'Orde a basso costo: tanti guerrieri, ma più fragili';
+
+// Differenze tra i popoli (V.0.6.0): moltiplicatori applicati alle statistiche di base
+export const FACTION_MODS = {
+  men:     { knight: { hp: 1.1, attack: 1.1 } },
+  shadow:  { all: { hp: 0.9, cost: 0.8, time: 0.85 } },
+  elves:   { all: { hp: 1.1, cost: 1.15 }, archer: { range: 1.2, attack: 1.35 },
+             knight: { hp: 2.0, speed: 0.55, attack: 1.6, cooldown: 1.6, siege: 3 }, gather: { wood: 1.15, food: 1.1 } },
+  dwarves: { all: { hp: 1.2, speed: 0.88 }, archer: { attack: 1.2, range: 0.9 }, buildingHp: 1.3, gather: { gold: 1.25, stone: 1.25 } },
 };
 
 // era = era minima per addestrare l'unità (1 = Prima Era)
@@ -63,6 +88,22 @@ export const HEROES = {
     ],
   },
 };
+HEROES.elves = {
+  hp: 190, speed: 2.9, attack: 13, range: 4.5, cooldown: 1.2, cost: { food: 150, gold: 150 }, time: 20, era: 2,
+  abilities: [
+    { id: 'star',   icon: 'ability_king',  name: 'Luce Stellare',     level: 1, cd: 25, desc: 'Cura gli alleati vicini del 40%' },
+    { id: 'arrows', icon: 'ability_storm', name: 'Pioggia di Frecce', level: 3, cd: 18, desc: 'Danni ad area sul nemico più vicino' },
+    { id: 'forest', icon: 'ability_voice', name: 'Canto del Bosco',   level: 6, cd: 80, desc: 'Suprema: alleati rinvigoriti, nemici rallentati' },
+  ],
+};
+HEROES.dwarves = {
+  hp: 280, speed: 2.4, attack: 18, range: 1.1, cooldown: 1.2, cost: { food: 150, gold: 150 }, time: 20, era: 2,
+  abilities: [
+    { id: 'quake',  icon: 'ability_slam', name: 'Colpo di Martello', level: 1, cd: 15, desc: 'Colpo ad area sui nemici intorno' },
+    { id: 'shield', icon: 'ability_cry',  name: 'Muro di Scudi',     level: 3, cd: 30, desc: 'Alleati vicini subiscono metà danni per 10 s' },
+    { id: 'forge',  icon: 'ability_king', name: 'Furia della Forgia', level: 6, cd: 90, desc: 'Suprema: cura e rinvigorisce gli alleati' },
+  ],
+};
 export const HERO_REVIVE = { cost: { gold: 100 }, time: 20 };
 export const HERO_PER_LEVEL = { hp: 18, attack: 2 };
 // esperienza cumulativa per raggiungere il livello L (indice = livello)
@@ -74,11 +115,27 @@ export const XP_RANGE = 10;
 export const ERAS = [
   null,
   { name: 'Prima Era',   heroCap: 0 },
-  { name: 'Seconda Era', heroCap: 5,  cost: { food: 300, gold: 100 },             time: 30 },
+  { name: 'Seconda Era', heroCap: 5,  cost: { food: 250, gold: 80 },              time: 30 },
   { name: 'Terza Era',   heroCap: 10, cost: { food: 500, gold: 250, stone: 100 }, time: 40 },
 ];
 
-export function unitDef(type, faction) { return type === 'hero' ? HEROES[faction] : UNITS[type]; }
+const defCache = {};
+export function unitDef(type, faction) {
+  if (type === 'hero') return HEROES[faction];
+  const k = type + '/' + faction;
+  if (defCache[k]) return defCache[k];
+  const m = FACTION_MODS[faction] || {}, a = m.all || {}, t = m[type] || {};
+  const mul = (key) => (a[key] || 1) * (t[key] || 1);
+  const b = UNITS[type];
+  const cost = {};
+  for (const [r, v] of Object.entries(b.cost)) cost[r] = Math.round(v * mul('cost') / 5) * 5;
+  return (defCache[k] = {
+    ...b, cost,
+    hp: Math.round(b.hp * mul('hp')), speed: b.speed * mul('speed'), attack: Math.round(b.attack * mul('attack')),
+    range: b.range > 2 ? b.range * mul('range') : b.range, cooldown: b.cooldown * mul('cooldown'),
+    time: Math.round(b.time * mul('time')), siege: t.siege || 1,
+  });
+}
 
 export const BUILDINGS = {
   tc:       { hp: 600, size: 3, cost: {},                         time: 0,  popCap: 5, trains: ['villager', 'hero'], dropoff: true,

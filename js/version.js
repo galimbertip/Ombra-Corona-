@@ -11,9 +11,24 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.5.0';
+export const VERSION = 'V.0.6.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.6.0',
+    date: '2026-11-23',
+    title: 'Elfi e Nani',
+    changes: [
+      'Due popoli nuovi, con la grafica generata con Arena AI: Elfi del Bosco d\'Oro e Nani di Khazrun',
+      'Elfi: unità più resistenti ma più costose, arcieri con più gittata e danno, Arborei lenti ma devastanti contro gli edifici, +15% legno e +10% cibo',
+      'Nani: tutto più robusto (unità +20% vita, edifici +30%) ma più lento, balestrieri potenti, +25% oro e pietra',
+      'Uomini: cavalieri più forti. Ombra: unità più economiche e veloci da addestrare, ma più fragili',
+      'Nuovi eroi: la Signora del Bosco (Luce Stellare, Pioggia di Frecce, Canto del Bosco) e il Re sotto la Montagna (Colpo di Martello, Muro di Scudi, Furia della Forgia)',
+      'Menu: quattro popoli tra cui scegliere, ognuno con il suo stile, e scelta dell\'avversario (o casuale)',
+      'IA più furba: prima pensa all\'economia, poi risparmia per cambiare era',
+      'Raccolta un po\' più veloce, consumo invernale più leggero e Seconda Era meno costosa',
+    ],
+  },
   {
     version: 'V.0.5.0',
     date: '2026-11-22',
