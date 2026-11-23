@@ -82,6 +82,7 @@ Le razze generiche (elfi, nani, orchi, troll, draghi) restano tali.
 4. **V.0.4.0 — Fazioni e mappe casuali:** scelta della fazione, mappe generate a caso, tre tipi di mappa ✅
 5. **V.0.5.0 — Territori e stagioni:** regioni con bonus e colonizzazione, quattro stagioni con inverno ✅
 6. **V.0.6.0 — Quattro fazioni:** arrivano Elfi e Nani, con stili di gioco diversi ✅
+6b. **V.0.6.1 — Camera:** rotazione della visuale a scatti di 90° (tasti Q/E e pulsanti), spostamento col mouse tenendo premuto il tasto destro (o spazio + tasto sinistro), oltre a quello già presente col tasto centrale
 7. **V.0.7.0 — Creature e Corona**
 8. **V.0.8.0 — Prima campagna** (Uomini) e mappe disegnate a mano
 9. **V.0.9.0 — Campagne complete e rifinitura**
