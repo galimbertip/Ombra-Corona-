@@ -217,3 +217,9 @@ small .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 1px;
 .faction-pick button img { height: 64px; }
 .faction-pick button small { line-height: 1.2; }
 .card { max-height: 96vh; overflow-y: auto; }
+
+/* contadini inattivi (V.0.6.1) */
+#idleBtn { position: relative; }
+#idleBtn.dead { opacity: .45; }
+#idleCount { position: absolute; right: -4px; top: -4px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: #d9822b; color: #fff; font-size: 11px; line-height: 16px; font-weight: bold; }
+#idleCount:empty { display: none; }

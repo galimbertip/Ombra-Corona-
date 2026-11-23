@@ -9,7 +9,22 @@
   <title>Ombra & Corona · GPverse</title>
   <link rel="icon" href="assets/sprites/emblem.webp" type="image/webp">
   <link rel="alternate icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css">
+  <!-- Versione della build: va aggiornata insieme a js/version.js. Serve a non far mescolare
+       al browser file vecchi e nuovi dopo un aggiornamento (GitHub Pages tiene i file in cache). -->
+  <script>
+    window.BUILD = 'V.0.6.1';
+    (function () {
+      var v = '?v=' + window.BUILD;
+      var mods = ['main', 'version', 'config', 'assets', 'world', 'entities', 'game', 'ai', 'maps', 'territory', 'seasons'];
+      var map = { imports: {} };
+      mods.forEach(function (m) { map.imports['./js/' + m + '.js'] = './js/' + m + '.js' + v; });
+      map.imports['./lib/three.module.js'] = './lib/three.module.js' + v;
+      map.imports['./lib/three.core.js'] = './lib/three.core.js' + v;
+      var s = document.createElement('script'); s.type = 'importmap'; s.textContent = JSON.stringify(map);
+      document.currentScript.after(s);
+      document.write('<link rel="stylesheet" href="css/style.css' + v + '">');
+    })();
+  </script>
 </head>
 <body>
   <canvas id="scene"></canvas>
@@ -30,7 +45,10 @@
       </div>
     </header>
     <div id="camBtns">
+      <button id="rotL" title="Ruota a sinistra (Q)">⟲</button>
+      <button id="rotR" title="Ruota a destra (E)">⟳</button>
       <button id="heroBtn" title="Eroe (R)">👑</button>
+      <button id="idleBtn" title="Contadino inattivo (punto)">⛏<span id="idleCount"></span></button>
       <button id="zoomIn" title="Avvicina">＋</button>
       <button id="zoomOut" title="Allontana">－</button>
       <button id="boxBtn" title="Selezione a riquadro">▢</button>
@@ -103,6 +121,6 @@
     <div id="historyList"></div>
   </dialog>
 
-  <script type="module" src="js/main.js"></script>
+  <script type="module">import './js/main.js';</script>
 </body>
 </html>

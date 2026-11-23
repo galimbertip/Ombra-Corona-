@@ -3,7 +3,8 @@
 import * as THREE from '../lib/three.module.js';
 
 export const DIR = 'assets/sprites/';
-export const url = (name) => `${DIR}${name}.webp`;
+const V = '?v=' + (window.BUILD || '');
+export const url = (name) => `${DIR}${name}.webp${V}`;
 export const tex = {};
 export const sizes = {};
 
@@ -22,7 +23,7 @@ export function loadAssets(onProgress = () => {}) {
   if (loading) return loading;
   const loader = new THREE.TextureLoader();
   let done = 0;
-  loading = fetch(`${DIR}sizes.json`).then(r => r.json()).then(s => {
+  loading = fetch(`${DIR}sizes.json${V}`).then(r => r.json()).then(s => {
     Object.assign(sizes, s);
     return Promise.all(SPRITES.map(name => loader.loadAsync(url(name)).then(t => {
       t.colorSpace = THREE.SRGBColorSpace;

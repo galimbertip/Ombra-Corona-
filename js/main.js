@@ -4,7 +4,7 @@
 // ============================================================================
 import * as THREE from '../lib/three.module.js';
 import { GAME_TITLE, BRAND, VERSION, HISTORY } from './version.js';
-import { MAP_SIZE, RES, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_TABLE, CAM_YAW, CAM_PITCH } from './config.js';
+import { MAP_SIZE, RES, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_TABLE, CAM_YAW, CAM_PITCH, VIEW } from './config.js';
 import { loadAssets, url, makeSprite, resetMaterials } from './assets.js';
 import { MAPS, RANDOM_MAP } from './maps.js';
 import { BONUS } from './territory.js';
@@ -322,7 +322,8 @@ canvas.addEventListener('pointermove', e => {
   drag.x = e.clientX; drag.y = e.clientY;
   const moved = Math.hypot(drag.x - drag.x0, drag.y - drag.y0);
   if (!drag.mode && moved > (drag.touch ? 10 : 6)) {
-    if (drag.button === 1 || (drag.touch && !boxMode)) drag.mode = 'pan';
+    // spostamento: tasto centrale, tasto destro trascinato, spazio + sinistro, un dito su touch
+    if (drag.button === 1 || drag.button === 2 || (drag.button === 0 && keys.has(' ')) || (drag.touch && !boxMode)) drag.mode = 'pan';
     else if (drag.button === 0 && !placing) drag.mode = 'box';
     else drag.mode = 'none';
   }
@@ -386,8 +387,12 @@ window.addEventListener('keydown', e => {
   if (k === 'escape') { if (placing) cancelPlacing(); else if (colonizing) stopColonize(); else if ($('#history').open) $('#history').close(); else setSelection([]); }
   if (k === 'h') { const tc = game.buildings.find(b => b.faction === PLAYER && b.type === 'tc'); if (tc) { setSelection([tc]); cam.tx = tc.x; cam.tz = tc.z; } }
   if (k === 'p') togglePause();
+  if (k === 'q') rotateView(-1);
+  if (k === 'e') rotateView(1);
+  if (k === ' ') e.preventDefault();
   if (k === '1' || k === '2' || k === '3') castAbility(+k - 1);
   if (k === 'r') selectHero();
+  if (k === '.') selectIdle();
   if (k === 'c' && myUnits().some(u => u.type === 'villager')) startPlacing('house');
   if (k === 'b' && myUnits().some(u => u.type === 'villager')) startPlacing('barracks');
   if (k === 'f' && myUnits().some(u => u.type === 'villager')) startPlacing('farm');
@@ -409,6 +414,15 @@ function keyboardCamera(dt) {
 // pulsanti a schermo (utili soprattutto su smartphone)
 $('#zoomIn').onclick = () => { cam.dist *= 0.8; };
 $('#zoomOut').onclick = () => { cam.dist *= 1.25; };
+// rotazione a scatti di 90° (gli sprite sono disegnati da un solo lato: si specchiano)
+function rotateView(dir) {
+  cam.yaw += dir * Math.PI / 2;
+  VIEW.yaw = cam.yaw;
+  const quarter = ((Math.round((cam.yaw - CAM_YAW) / (Math.PI / 2)) % 4) + 4) % 4;
+  toast(`Visuale ruotata: ${['Nord', 'Est', 'Sud', 'Ovest'][quarter]}`);
+}
+$('#rotL').onclick = () => rotateView(-1);
+$('#rotR').onclick = () => rotateView(1);
 function toggleBoxMode(v = !boxMode) { boxMode = v; $('#boxBtn').classList.toggle('on', boxMode); if (boxMode) toast('Trascina per selezionare un gruppo'); }
 $('#boxBtn').onclick = () => toggleBoxMode();
 if (!isTouch) $('#boxBtn').hidden = true;
@@ -440,6 +454,9 @@ function renderTopBar() {
   $('#season').className = se.id + (game.players[PLAYER].starving ? ' starving' : '');
   const hero = myHero();
   $('#heroBtn').classList.toggle('dead', !hero);
+  const idle = game.units.filter(u => u.alive && u.faction === PLAYER && u.type === 'villager' && u.state === 'idle').length;
+  $('#idleCount').textContent = idle || '';
+  $('#idleBtn').classList.toggle('dead', !idle);
 }
 const myHero = () => game && game.units.find(u => u.alive && u.faction === PLAYER && u.isHero);
 
@@ -464,7 +481,7 @@ function refreshPanel(force = false) {
   if (!sel.length) {
     if (panelKey !== 'none' || force) {
       panelKey = 'none';
-      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · WASD/frecce: camera · H: centro città · R: eroe · 1/2/3: abilità · T: colonizza · clic sul terreno: info regione'}</div>`;
+      el.innerHTML = `<div class="hint">${isTouch ? 'Tocca un\'unità per selezionarla, poi tocca il terreno per darle un ordine.' : 'Clic sinistro: seleziona · trascina: selezione a riquadro · clic destro: ordine · trascina col destro: sposta · Q/E: ruota · WASD/frecce: camera · .: contadino inattivo · H: centro città · R: eroe · 1/2/3: abilità · T: colonizza · clic sul terreno: info regione'}</div>`;
     }
     return;
   }
@@ -614,6 +631,15 @@ function selectHero() {
   setSelection([h]); cam.tx = h.x; cam.tz = h.z;
 }
 $('#heroBtn').onclick = selectHero;
+// contadini senza lavoro: un clic seleziona il prossimo e ci porta la camera
+let idleI = 0;
+function selectIdle() {
+  const idle = game.units.filter(u => u.alive && u.faction === PLAYER && u.type === 'villager' && u.state === 'idle');
+  if (!idle.length) { toast('Nessun contadino inattivo'); return; }
+  const u = idle[idleI++ % idle.length];
+  setSelection([u]); cam.tx = u.x; cam.tz = u.z;
+}
+$('#idleBtn').onclick = selectIdle;
 
 // ---- stagioni: neve, tinta e annunci ---------------------------------------------------
 let weather = null;
@@ -744,6 +770,11 @@ $('#historyClose').onclick = () => $('#history').close();
 
 // ---- schermate --------------------------------------------------------------------------
 document.title = `${GAME_TITLE} · ${BRAND} ${VERSION}`;
+// file vecchi in cache? ricarico una volta la pagina saltando la cache
+if (window.BUILD && window.BUILD !== VERSION && !sessionStorage.getItem('reloaded-' + VERSION)) {
+  sessionStorage.setItem('reloaded-' + VERSION, '1');
+  location.replace(location.pathname + '?r=' + Date.now());
+}
 function renderStats() {
   const p = progress;
   $('#stats').textContent = p.games
@@ -804,7 +835,8 @@ function startGame() {
     $('#over').hidden = false;
   });
   const tc = game.buildings.find(b => b.faction === PLAYER && b.type === 'tc');
-  Object.assign(cam, { tx: tc.x + 3, tz: tc.z - 1, dist: innerWidth < innerHeight ? 22 : 16 });
+  Object.assign(cam, { tx: tc.x + 3, tz: tc.z - 1, yaw: CAM_YAW, dist: innerWidth < innerHeight ? 22 : 16 });
+  VIEW.yaw = CAM_YAW;
   selection = []; placing = null; paused = false; selNodeMarker = null; flags.length = 0; effects.length = 0;
   $('#start').hidden = true; $('#over').hidden = true; $('#hud').hidden = false;
   refreshPanel(true);

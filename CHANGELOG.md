@@ -6,9 +6,17 @@ Schema: **V.major.minor.patch**
 - **patch**: correzioni e ritocchi
 
 La stessa storia si vede nel gioco (badge della versione → "Storia delle versioni") ed è definita in `js/version.js`.
-A ogni rilascio aggiorna **entrambi**.
+A ogni rilascio aggiorna **entrambi**, più `window.BUILD` in `index.html`.
 
 ---
+
+## V.0.6.1 — Correzioni e camera · 2026-11-23
+- Corretto: dopo un aggiornamento il browser poteva mescolare file vecchi e nuovi del gioco, causando comportamenti strani (unità bloccate, popolazione sbagliata). Ora ogni versione carica sempre i suoi file
+- Le unità nuove compaiono in posti liberi accanto all'edificio invece che una dietro l'altra (prima i contadini si nascondevano dietro il soldato)
+- Pulsante ⛏ (tasto punto) con il numero di contadini senza lavoro: un clic seleziona il prossimo e ci porta la camera
+- Rotazione della visuale a scatti di 90°: tasti Q/E o pulsanti ⟲ ⟳
+- Spostamento sulla mappa col mouse: trascinando col tasto destro, oppure spazio + tasto sinistro (il clic destro semplice resta un ordine)
+- Controllo generale: partite complete simulate con tutti i popoli, mappe e difficoltà senza errori
 
 ## V.0.6.0 — Elfi e Nani · 2026-11-23
 - Due popoli nuovi, con la grafica generata con Arena AI: Elfi del Bosco d'Oro e Nani di Khazrun

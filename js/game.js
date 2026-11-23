@@ -126,8 +126,10 @@ export class Game {
       if (this.grid.isFree(x, z)) cells.push({ x, z });
     }
     // preferisci il lato verso il centro mappa
-    cells.sort((a, c) => dist(a.x, a.z, 32, 32) - dist(c.x, c.z, 32, 32));
-    const c = cells[Math.floor(Math.random() * Math.min(4, cells.length))] || this.grid.nearestFree(b.x, b.z + b.size);
+    // e le celle dove non c'è già qualcuno (così le unità nuove non si nascondono una dietro l'altra)
+    const busy = (c) => this.units.some(u => u.alive && Math.floor(u.x) === c.x && Math.floor(u.z) === c.z);
+    cells.sort((a, c) => (busy(a) - busy(c)) * 100 + dist(a.x, a.z, 32, 32) - dist(c.x, c.z, 32, 32));
+    const c = cells[Math.floor(Math.random() * Math.min(3, cells.length))] || this.grid.nearestFree(b.x, b.z + b.size);
     const u = new Unit(type, b.faction, c.x + 0.5, c.z + 0.5);
     this.units.push(u);
     this.scene.add(u.mesh);

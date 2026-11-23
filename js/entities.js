@@ -1,6 +1,6 @@
 // GPverse — Ombra & Corona — unità ed edifici (sprite dipinti dalla V.0.3.0)
 import * as THREE from '../lib/three.module.js';
-import { unitDef, BUILDINGS, FACTION_MODS, CAM_YAW, CAM_PITCH } from './config.js';
+import { unitDef, BUILDINGS, FACTION_MODS, VIEW, CAM_PITCH } from './config.js';
 import { makeSprite, TINT } from './assets.js';
 
 let NEXT_ID = 1;
@@ -128,7 +128,7 @@ export class Unit {
   // aggiorna posa: verso (specchiando lo sprite), passo e colpo
   pose(dt) {
     if (this.face !== undefined) {
-      const screenX = Math.sin(this.face - CAM_YAW);
+      const screenX = Math.sin(this.face - VIEW.yaw);
       if (Math.abs(screenX) > 0.15) this.lookRight = screenX > 0;
     }
     const flip = (this.lookRight === false) !== this.facesLeft;
