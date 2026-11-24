@@ -108,7 +108,7 @@ export const HERO_REVIVE = { cost: { gold: 100 }, time: 20 };
 export const HERO_PER_LEVEL = { hp: 18, attack: 2 };
 // esperienza cumulativa per raggiungere il livello L (indice = livello)
 export const XP_TABLE = [0, 0, 60, 180, 360, 600, 900, 1260, 1680, 2160, 2700];
-export const XP_VALUE = { villager: 15, soldier: 25, archer: 25, knight: 40, hero: 150, house: 20, farm: 15, barracks: 40, tc: 120 };
+export const XP_VALUE = { wolf: 20, troll: 90, dragon: 400, flame: 600, eagle: 30, bjarn: 120, villager: 15, soldier: 25, archer: 25, knight: 40, hero: 150, house: 20, farm: 15, barracks: 40, tc: 120 };
 export const XP_RANGE = 10;
 
 // Ere (stile Age of Empires): si avanzano dal Centro Città
@@ -120,8 +120,20 @@ export const ERAS = [
 ];
 
 const defCache = {};
+// Creature (V.0.7.0): neutrali che difendono i luoghi della mappa, più Bjarn e le aquile alleabili
+export const CREATURES = {
+  wolf:   { name: 'Lupo selvatico',      hp: 45,   speed: 3.2, attack: 6,  range: 0.9, cooldown: 1.1, aggro: 4, leash: 8, look: { width: 1.35 } },
+  troll:  { name: 'Troll delle Caverne', hp: 320,  speed: 1.9, attack: 22, range: 1.1, cooldown: 1.8, aggro: 3.5, leash: 7, look: { height: 2.3 }, siege: 2 },
+  dragon: { name: 'Drago',               hp: 1400, speed: 2.2, attack: 34, range: 2.6, cooldown: 2.0, aggro: 6, leash: 9,  look: { width: 3.6 }, splash: 1.4, regen: 6 },
+  flame:  { name: 'Flagello di Fiamma',  hp: 2200, speed: 2.0, attack: 45, range: 1.6, cooldown: 1.6, aggro: 7, leash: 999, look: { height: 3.6 }, splash: 1.6, siege: 2 },
+  eagle:  { name: 'Aquila dei Picchi',   hp: 110,  speed: 4.6, attack: 12, range: 1.0, cooldown: 1.0, look: { width: 1.9 }, flying: true },
+  bjarn:  { name: 'Bjarn l\'Uomo-Orso',   hp: 520,  speed: 2.9, attack: 26, range: 1.1, cooldown: 1.2, look: { height: 2.3 }, regen: 3 },
+};
+export const NEUTRAL = 'neutral';
+
 export function unitDef(type, faction) {
   if (type === 'hero') return HEROES[faction];
+  if (CREATURES[type]) return { ...CREATURES[type], cost: {}, time: 0, era: 1 };
   const k = type + '/' + faction;
   if (defCache[k]) return defCache[k];
   const m = FACTION_MODS[faction] || {}, a = m.all || {}, t = m[type] || {};

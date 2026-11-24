@@ -14,6 +14,9 @@ const SPRITES = [
   ...PEOPLES.flatMap(f => ['villager', 'soldier', 'archer', 'knight', 'hero'].map(t => `unit_${f}_${t}`)),
   ...PEOPLES.flatMap(f => ['tc', 'house', 'barracks', 'farm'].map(t => `bld_${f}_${t}`)),
   'bld_men_house_alt', 'bld_construction',
+  ...['bjarn', 'eagle', 'dragon', 'flame', 'troll', 'wolf'].map(c => `creature_${c}`),
+  ...['crown', 'rift', 'lair', 'eagle_nest', 'deep_mine', 'bear_hut', 'troll_cave', 'ruins'].map(o => `obj_${o}`),
+  'icon_crown',
   'res_tree_1', 'res_tree_2', 'res_tree_3', 'res_bush', 'res_stone', 'res_gold',
   'ground_grass', 'ground_ash', 'ground_dirt',
 ];

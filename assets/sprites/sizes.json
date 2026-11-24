@@ -242,5 +242,69 @@
  "unit_elves_villager": [
   162,
   320
+ ],
+ "creature_bjarn": [
+  290,
+  340
+ ],
+ "creature_dragon": [
+  382,
+  340
+ ],
+ "creature_eagle": [
+  373,
+  340
+ ],
+ "creature_flame": [
+  335,
+  340
+ ],
+ "creature_troll": [
+  272,
+  340
+ ],
+ "creature_wolf": [
+  381,
+  340
+ ],
+ "icon_corruption": [
+  87,
+  96
+ ],
+ "icon_crown": [
+  96,
+  82
+ ],
+ "obj_bear_hut": [
+  560,
+  452
+ ],
+ "obj_crown": [
+  560,
+  961
+ ],
+ "obj_deep_mine": [
+  560,
+  528
+ ],
+ "obj_eagle_nest": [
+  560,
+  840
+ ],
+ "obj_lair": [
+  560,
+  447
+ ],
+ "obj_rift": [
+  560,
+  430
+ ],
+ "obj_ruins": [
+  560,
+  492
+ ],
+ "obj_troll_cave": [
+  560,
+  476
  ]
 }

@@ -12,9 +12,25 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.6.1';
+export const VERSION = 'V.0.7.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.7.0',
+    date: '2026-11-24',
+    title: 'Creature e Corona d\'Ombra',
+    changes: [
+      'Creature selvagge a guardia dei luoghi della mappa: lupi, Troll delle Caverne e un Drago. Attaccano chi si avvicina e poi tornano alla tana',
+      'Luoghi nuovi, sempre in posizioni giuste per entrambe le basi: Tana del Drago, Caverne dei Troll e Rovine con tesori da conquistare',
+      'Nido delle Aquile: il primo eroe che ci arriva ottiene 3 Aquile dei Picchi, che volano sopra boschi e ostacoli',
+      'Capanna di Bjarn: si ingaggia l\'Uomo-Orso, un guerriero fortissimo che si rigenera (non per l\'Ombra)',
+      'Miniera Profonda: oro infinito e veloce, ma scavando troppo si risveglia il Flagello di Fiamma, che marcia sulla base di chi ha scavato di più',
+      'La Corona d\'Ombra: la prende un eroe dalla Seconda Era. Attacco +50% e rigenerazione, ma la corruzione sale; al 100% l\'eroe passa contro tutti',
+      'Nuove vittorie: portare la Corona alla Fenditura di Fuoco (chi la porta cammina più piano) e compiere un rito di 12 secondi, oppure (per l\'Ombra) tenerla 90 secondi accanto alla propria base',
+      'In alto lo stato della Corona (clic per trovarla), barra della corruzione nella scheda dell\'eroe, luoghi e creature sulla minimappa',
+      'L\'IA va a prendere la Corona nella Terza Era e ingaggia Bjarn quando ha oro',
+    ],
+  },
   {
     version: 'V.0.6.1',
     date: '2026-11-23',

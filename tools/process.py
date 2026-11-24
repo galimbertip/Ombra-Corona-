@@ -74,6 +74,8 @@ for f in sorted([*RAW.glob('*.png'), *RAW.glob('*.jpg')]):
         elif n.startswith('bld_'): im = fit(im, w=560)
         elif n.startswith('res_'): im = fit(im, h=256) if 'tree' in n else fit(im, w=256)
         elif n.startswith('icon_'): im = fit(im, w=96, h=96)
+        elif n.startswith('creature_'): im = fit(im, w=400, h=340)
+        elif n.startswith('obj_'): im = fit(im, w=560)
         elif n == 'emblem': im = fit(im, w=512)
         save(im, n, 92)
         print(f'{n:26s} sfondo={kb:6.1f} -> {im.width}x{im.height}')

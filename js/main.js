@@ -8,6 +8,8 @@ import { MAP_SIZE, RES, RES_LABEL, BUILDINGS, FACTIONS, NODES, ERAS, HEROES, XP_
 import { loadAssets, url, makeSprite, resetMaterials } from './assets.js';
 import { MAPS, RANDOM_MAP } from './maps.js';
 import { BONUS } from './territory.js';
+import { CREATURES } from './config.js';
+import { CROWN, HIRE_BJARN, MINE_AWAKEN, hireBlock, hireBjarn } from './creatures.js';
 import { SEASONS } from './seasons.js';
 import { TINT, applyTint } from './assets.js';
 import { Game } from './game.js';
@@ -109,7 +111,11 @@ function pickAt(sx, sy) {
     const r = b.rect;
     if (p.x >= r.x0 - 0.1 && p.x <= r.x1 + 1.1 && p.z >= r.z0 - 0.1 && p.z <= r.z1 + 1.1) return b;
   }
-  const hits = ray.intersectObjects(game.buildings.map(b => b.built ? b.sprite : b.site), false);
+  for (const st of game.sites) {
+    const r = st.rect;
+    if (p.x >= r.x0 - 0.1 && p.x <= r.x1 + 1.1 && p.z >= r.z0 - 0.1 && p.z <= r.z1 + 1.1) return st;
+  }
+  const hits = ray.intersectObjects([...game.buildings.map(b => b.built ? b.sprite : b.site), ...game.sites.filter(x => x.sprite.visible).map(x => x.sprite)], false);
   if (hits.length) {
     hits.sort((a, c) => (c.object.parent.position.x + c.object.parent.position.z) - (a.object.parent.position.x + a.object.parent.position.z));
     return hits[0].object.parent.userData.entity;
@@ -139,7 +145,7 @@ function setSelection(list) {
   selection.forEach(e => {
     if (e.ring) {
       e.ring.visible = true;
-      e.ring.material.color.setHex(e.faction === PLAYER ? 0x7dff7d : e.kind === 'node' ? 0xffe27a : 0xff6b6b);
+      e.ring.material.color.setHex(e.faction === PLAYER ? 0x7dff7d : e.kind === 'node' || e.kind === 'site' ? 0xffe27a : e.faction === 'neutral' ? 0xffb347 : 0xff6b6b);
     }
   });
   if (selNodeMarker) selNodeMarker.visible = false;
@@ -449,6 +455,14 @@ function renderTopBar() {
   const t = Math.floor(game.time);
   $('#clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   $('#era').textContent = ERAS[game.players[PLAYER].era].name;
+  const cr = game.crown;
+  const chip = $('#crownInfo');
+  if (cr && (cr.holder || cr.ground)) {
+    chip.hidden = false;
+    const mine = cr.holder && cr.holder.faction === PLAYER;
+    chip.className = cr.holder ? (mine ? 'mine' : 'theirs') : '';
+    chip.innerHTML = `${ico('crown')}${cr.holder ? (cr.holder.faction === 'shadow' ? `Dominio ${Math.floor(cr.dominion)}/${CROWN.dominion}s` : cr.ritual ? `Rito ${Math.floor(cr.ritual)}/${CROWN.ritual}s` : `Corruzione ${Math.floor((cr.holder.corruption || 0) * 100)}%`) : 'A terra'}`;
+  } else chip.hidden = true;
   const se = game.seasons.current, lt = Math.ceil(game.seasons.left);
   $('#season').textContent = `${se.icon} ${se.name} ${Math.floor(lt / 60)}:${String(lt % 60).padStart(2, '0')}`;
   $('#season').className = se.id + (game.players[PLAYER].starving ? ' starving' : '');
@@ -470,6 +484,32 @@ function unitStatus(u) {
   if (u.buffUntil > game.time) t += ' · rinvigorito';
   if (u.slowUntil > game.time) t += ' · rallentato';
   return t;
+}
+// nome e popolo di qualunque cosa sulla mappa (anche creature e luoghi)
+function entName(e) {
+  if (e.kind === 'site') return e.name;
+  if (e.isHero && e.faction === 'neutral') return `${FACTIONS[e.origFaction].names.hero} (corrotto)`;
+  if (CREATURES[e.type]) return CREATURES[e.type].name;
+  return FACTIONS[e.faction].names[e.type];
+}
+function facLabel(e) {
+  if (e.faction === 'neutral') return e.kind === 'site' ? '<p class="fac">Luogo della mappa</p>' : '<p class="fac" style="color:#c9b28a">Creatura selvaggia</p>';
+  const f = FACTIONS[e.faction];
+  return `<p class="fac" style="color:#${f.color.toString(16).padStart(6, '0')}">${f.name}</p>`;
+}
+function siteInfo(e) {
+  const alive = e.guards.filter(g => g.alive).length;
+  const guard = e.guards.length ? (alive ? `<p class="warn">Sorvegliato da ${alive} × ${CREATURES[e.guards[0].type].name}</p>` : '') : '';
+  const loot = e.treasure ? `<p>Tesoro: ${Object.entries(e.treasure).map(([k, v]) => `${ico(k)}${v}`).join(' ')}${alive ? '' : ' · mandaci un\'unità a prenderlo'}</p>` : (e.guards.length ? '<p>Il tesoro è già stato preso</p>' : '');
+  switch (e.type) {
+    case 'crown': return game.crown?.holder || game.crown?.ground ? '<p>Il piedistallo è vuoto: la Corona è in giro per la mappa.</p>'
+      : `<p>La Corona d'Ombra riposa qui. Un eroe dalla ${ERAS[CROWN.pickEra].name} può prenderla: attacco +50% e si rigenera, ma lentamente lo corrompe (non i servi dell'Ombra).</p>`;
+    case 'rift': return `<p>Qui si distrugge la Corona d'Ombra: l'eroe che la porta deve restare sull'orlo per ${CROWN.ritual} secondi, poi vince la partita.</p><p>Per l'Ombra vale il contrario: vince tenendola 90 secondi vicino alla sua base.</p>`;
+    case 'eagle_nest': return e.used ? `<p>Le aquile si sono alleate con ${FACTIONS[e.used].name}.</p>` : '<p>Il primo eroe che arriva qui ottiene 3 Aquile dei Picchi alleate (volano sopra boschi e ostacoli).</p>';
+    case 'deep_mine': return `<p>${ico('gold')} Oro infinito e veloce per i contadini.</p><p class="warn">Attenzione: scavando troppo (${Math.min(MINE_AWAKEN, Math.floor(e.mined))}/${MINE_AWAKEN}) si risveglia il Flagello di Fiamma, che attacca chi ha scavato di più.</p>${e.awake ? '<p class="warn"><b>Il Flagello è sveglio!</b></p>' : ''}`;
+    case 'bear_hut': return e.hired ? `<p>Bjarn combatte per ${FACTIONS[e.hired].name}.</p>` : `<p>Qui vive Bjarn l'Uomo-Orso: si ingaggia con un'unità vicina alla capanna. Non combatte per l'Ombra.</p>`;
+    default: return guard + loot;
+  }
 }
 const queueLabel = (f, type) => type === 'era' ? `Avanzamento alla ${ERAS[game.players[f].era + 1]?.name || ''}` : FACTIONS[f].names[type];
 
@@ -499,19 +539,28 @@ function refreshPanel(force = false) {
     info = `<h3>${NODES[e.type].label}</h3><p>${ico(e.res)} ${Math.ceil(e.amount)} rimasti</p>`;
   } else if (sel.length > 1) {
     const by = {};
-    sel.forEach(u => { const n = FACTIONS[u.faction].names[u.type]; by[n] = (by[n] || 0) + 1; });
+    sel.forEach(u => { const n = entName(u); by[n] = (by[n] || 0) + 1; });
     info = `<h3>${sel.length} unità</h3><p>${Object.entries(by).map(([n, c]) => `${c} × ${n}`).join(' · ')}</p>`;
+  } else if (e.kind === 'site') {
+    info = `<h3>${e.name}</h3>${facLabel(e)}${siteInfo(e)}`;
+    if (e.type === 'bear_hut' && !e.hired && PLAYER !== 'shadow')
+      buttons.push({ id: 'hire', label: 'Ingaggia Bjarn', sub: hireBlock(game, PLAYER, e) || costText(HIRE_BJARN), ok: true, cls: 'ability', pic: url('creature_bjarn') });
   } else {
-    const name = FACTIONS[e.faction].names[e.type];
-    info = `<h3>${name}</h3><p class="fac" style="color:#${FACTIONS[e.faction].color.toString(16).padStart(6, '0')}">${FACTIONS[e.faction].name}</p>` +
+    const name = entName(e);
+    info = `<h3>${name}</h3>${facLabel(e)}` +
       `<div class="hp"><i style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></i><span>${Math.ceil(e.hp)}/${e.maxHp}</span></div>`;
     if (e.kind === 'unit') info += `<p>${unitStatus(e)}</p>`;
-    if (e.isHero) {
+    if (e.isHero && game.players[e.faction]) {
       const next = XP_TABLE[e.level + 1];
       const cap = game.maxLevel(e.faction);
       const xpTxt = e.level >= cap ? (cap < 10 ? `Livello massimo per questa era (${cap})` : 'Livello massimo') : `XP ${Math.floor(e.xp)}/${next}`;
       const pct = next && e.level < cap ? (e.xp - XP_TABLE[e.level]) / (next - XP_TABLE[e.level]) * 100 : 100;
       info += `<p>Livello <b>${e.level}</b> · Attacco ${e.attack}</p><div class="xp"><i style="width:${Math.min(100, pct)}%"></i><span>${xpTxt}</span></div>`;
+      if (game.crown?.holder === e) {
+        info += e.faction === 'shadow'
+          ? `<p>${ico('crown')} Porta la Corona · dominio ${Math.floor(game.crown.dominion)}/${CROWN.dominion} s vicino alla base</p>`
+          : `<div class="xp corr"><i style="width:${(e.corruption || 0) * 100}%"></i><span>${ico('corruption')} Corruzione ${Math.floor((e.corruption || 0) * 100)}%</span></div><p>${game.crown.ritual ? `Rito in corso: ${Math.floor(game.crown.ritual)}/${CROWN.ritual} s` : 'Portala alla Fenditura di Fuoco!'}</p>`;
+      }
     }
     if (e.kind === 'building') {
       if (!e.built) info += `<p>In costruzione: ${Math.floor(e.progress * 100)}%</p>`;
@@ -597,6 +646,7 @@ $('#panel').addEventListener('click', ev => {
   } else if (cmd.startsWith('unq-')) { game.cancelTrain(b, +cmd.slice(4)); toast('Annullato, risorse restituite'); }
   else if (cmd === 'cancel') game.cancelTrain(b);
   else if (cmd.startsWith('ab-')) castAbility(+cmd.slice(3));
+  else if (cmd === 'hire') { if (!hireBlock(game, PLAYER, b) && !explainMissing(HIRE_BJARN)) hireBjarn(game, PLAYER, b); else toast(hireBlock(game, PLAYER, b) || 'Risorse insufficienti'); }
   else if (cmd === 'colonize') { if (!explainMissing(game.territory.colonizeCost(PLAYER))) startColonize(); }
   else if (cmd === 'stop') myUnits().forEach(u => { u.state = 'idle'; u.path = []; u.target = null; });
   else if (cmd === 'desel') { cancelPlacing(); setSelection([]); }
@@ -631,6 +681,7 @@ function selectHero() {
   setSelection([h]); cam.tx = h.x; cam.tz = h.z;
 }
 $('#heroBtn').onclick = selectHero;
+$('#crownInfo').onclick = () => { const c = game?.crown; const p = c && (c.holder || c.ground); if (p) { cam.tx = p.x; cam.tz = p.z; if (c.holder) setSelection([c.holder]); } };
 // contadini senza lavoro: un clic seleziona il prossimo e ci porta la camera
 let idleI = 0;
 function selectIdle() {
@@ -732,7 +783,14 @@ function drawMinimap() {
     mctx.fillStyle = '#' + FACTIONS[b.faction].color.toString(16).padStart(6, '0');
     mctx.fillRect(b.cx * k, b.cz * k, b.size * k, b.size * k);
   }
+  for (const st of game.sites) {
+    mctx.fillStyle = st.type === 'crown' || st.type === 'rift' ? '#b45cff' : '#e8d9a8';
+    mctx.fillRect(st.cx * k, st.cz * k, st.size * k, st.size * k);
+  }
+  const c = game.crown;
+  if (c && (c.holder || c.ground)) { const p = c.holder || c.ground; mctx.fillStyle = '#b45cff'; mctx.beginPath(); mctx.arc(p.x * k, p.z * k, 4, 0, 7); mctx.fill(); }
   for (const u of game.units) {
+    if (u.faction === 'neutral') { mctx.fillStyle = '#c9b28a'; const z = u.type === 'dragon' || u.type === 'flame' ? 5 : 3; mctx.fillRect(u.x * k - z / 2, u.z * k - z / 2, z, z); continue; }
     mctx.fillStyle = u.isHero ? (u.faction === PLAYER ? '#ffd75e' : '#c9f3ff') : u.faction === PLAYER ? '#8fb6ff' : '#ff7a70';
     const sz = u.isHero ? 5 : 3;
     mctx.fillRect(u.x * k - sz / 2, u.z * k - sz / 2, sz, sz);
@@ -823,13 +881,15 @@ function startGame() {
     banner(ERAS[era].name, unlock);
   });
   game.on('died', e => { if (selection.includes(e)) setSelection(selection.filter(x => x !== e)); });
-  game.on('over', result => {
+  game.on('alarm', (t, sub) => banner(t, sub));
+  game.on('site', () => { if (selection[0]?.kind === 'site') refreshPanel(true); });
+  game.on('over', (result, reason) => {
     progress.games++;
     if (result === 'win') { progress.wins++; progress.bestWin = progress.bestWin ? Math.min(progress.bestWin, game.time) : game.time; }
     else progress.losses++;
     saveProgress(progress);
     $('#overTitle').textContent = result === 'win' ? 'Vittoria!' : 'Sconfitta';
-    $('#overText').textContent = result === 'win'
+    $('#overText').textContent = reason ? reason : result === 'win'
       ? `La base nemica (${FACTIONS[game.enemy].names.tc}) è caduta in ${fmtTime(game.time)}. ${FACTIONS[PLAYER].name}: vittoria!`
       : `La vostra base (${FACTIONS[PLAYER].names.tc}) è stata distrutta. Vince ${FACTIONS[game.enemy].name}.`;
     $('#over').hidden = false;

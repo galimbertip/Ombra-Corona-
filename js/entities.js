@@ -1,9 +1,10 @@
 // GPverse — Ombra & Corona — unità ed edifici (sprite dipinti dalla V.0.3.0)
 import * as THREE from '../lib/three.module.js';
-import { unitDef, BUILDINGS, FACTION_MODS, VIEW, CAM_PITCH } from './config.js';
+import { unitDef, BUILDINGS, FACTION_MODS, VIEW, CAM_PITCH, CREATURES } from './config.js';
 import { makeSprite, TINT } from './assets.js';
 
 let NEXT_ID = 1;
+const CORRUPT = new THREE.Color(0.45, 0.2, 0.6);
 const COS_P = Math.cos(CAM_PITCH), SIN_P = Math.sin(CAM_PITCH);
 // altezza nel mondo a cui un punto appare "h" più in alto sullo schermo
 const screenUp = (h) => h / COS_P;
@@ -92,17 +93,23 @@ export class Unit {
     this.repath = 0;
     this.anim = Math.random() * 10;
 
-    this.spriteName = `unit_${faction}_${type}`;
-    const h = UNIT_LOOK[type][faction];
-    this.sprite = makeSprite(this.spriteName, { height: h, own: true });
+    const cr = CREATURES[type];
+    this.spriteName = cr ? `creature_${type}` : `unit_${faction}_${type}`;
+    this.sprite = makeSprite(this.spriteName, cr ? { ...cr.look, own: true } : { height: UNIT_LOOK[type][faction], own: true });
+    const h = this.sprite.scale.y;
+    this.creature = !!cr; this.flying = !!cr?.flying;
+    if (this.flying) this.lift = 1.1;
     this.sprite.center.set(0.5, 0.04);
     this.baseW = this.sprite.scale.x;
     this.facesLeft = FACES_LEFT.has(this.spriteName);
     this.model = this.sprite;           // usato dalla simulazione per le animazioni
     this.mesh = new THREE.Group();
-    this.ring = makeRing(type === 'knight' ? 0.55 : 0.4);
-    this.shadow = makeShadow(type === 'knight' ? 1.0 : 0.6);
-    this.hpBar = makeHpBar(type === 'hero' ? 0.9 : 0.6, screenUp(h + 0.12));
+    const big = cr ? Math.max(0.4, Math.min(1.4, this.sprite.scale.x * 0.35)) : type === 'knight' ? 0.55 : 0.4;
+    this.ring = makeRing(big);
+    this.shadow = makeShadow(cr ? big * 2.2 : type === 'knight' ? 1.0 : 0.6);
+    this.radius = cr ? big * 0.8 : 0.3;
+    this.splash = cr?.splash || 0; this.regen = cr?.regen || 0;
+    this.hpBar = makeHpBar(type === 'hero' || cr ? 0.9 : 0.6, screenUp(h + (this.lift || 0) + 0.12));
     this.mesh.add(this.shadow, this.ring, this.sprite, this.hpBar);
     this.ranged = st.range > 2;
     this.siege = st.siege || 1;
@@ -134,11 +141,13 @@ export class Unit {
     const flip = (this.lookRight === false) !== this.facesLeft;
     this.sprite.scale.x = flip ? -this.baseW : this.baseW;
     this.anim += dt * (this.moving ? 12 : 0);
-    this.sprite.position.y = this.moving ? Math.abs(Math.sin(this.anim)) * 0.07 : 0;
+    this.sprite.position.y = (this.lift ? this.lift + Math.sin(this.anim * 0.3 + this.id) * 0.12 : 0) + (this.moving && !this.lift ? Math.abs(Math.sin(this.anim)) * 0.07 : 0);
+    if (this.lift) this.anim += dt * 4;
     this.sprite.material.rotation = this.swing > 0 ? (flip ? 0.12 : -0.12) : 0;
     // lampo rosso quando viene colpito
     if (this.hitT > 0) { this.hitT -= dt; this.sprite.material.color.setRGB(1, 0.55, 0.55); }
     else this.sprite.material.color.copy(TINT);
+    if (this.corruption > 0) this.sprite.material.color.lerp(CORRUPT, Math.min(0.7, this.corruption * 0.8));
   }
 }
 
@@ -204,4 +213,45 @@ export function updateBars(entity, camera, selected) {
   fg.scale.x = Math.max(0.001, r);
   fg.position.x = -(1 - r) * bar.userData.width / 2;
   fg.material.color.setHex(r > 0.5 ? 0x4cd964 : r > 0.25 ? 0xffcc00 : 0xff3b30);
+}
+
+// --- luoghi della mappa (V.0.7.0): tana del drago, nido, rovine, Corona... -------------
+export const SITES = {
+  crown:      { size: 1, sprite: 'obj_crown',      name: 'Piedistallo della Corona', block: true },
+  rift:       { size: 2, sprite: 'obj_rift',       name: 'Fenditura di Fuoco',       block: true },
+  lair:       { size: 3, sprite: 'obj_lair',       name: 'Tana del Drago',           block: true },
+  eagle_nest: { size: 2, sprite: 'obj_eagle_nest', name: 'Nido delle Aquile',        block: true },
+  deep_mine:  { size: 2, sprite: 'obj_deep_mine',  name: 'Miniera Profonda',         block: true },
+  bear_hut:   { size: 2, sprite: 'obj_bear_hut',   name: 'Capanna di Bjarn',         block: true },
+  troll_cave: { size: 2, sprite: 'obj_troll_cave', name: 'Caverna dei Troll',        block: true },
+  ruins:      { size: 2, sprite: 'obj_ruins',      name: 'Rovine antiche',           block: true },
+};
+export class Site {
+  constructor(type, cx, cz) {
+    const st = SITES[type];
+    this.id = NEXT_ID++;
+    this.kind = 'site'; this.type = type; this.faction = 'neutral';
+    this.size = st.size; this.name = st.name;
+    this.cx = cx; this.cz = cz; this.x = cx + st.size / 2; this.z = cz + st.size / 2;
+    this.alive = true; this.hp = 1; this.maxHp = 1;
+    this.guards = [];
+    this.spriteName = st.sprite;
+    const width = st.size * Math.SQRT2 * (type === 'crown' ? 1.15 : 1.08);
+    this.sprite = makeSprite(st.sprite, { width });
+    const drop = (st.size / Math.SQRT2) * SIN_P;
+    this.sprite.center.set(0.5, drop / this.sprite.scale.y - 0.02);
+    this.mesh = new THREE.Group();
+    this.ring = makeRing(st.size * 0.78);
+    this.ring.material.color.setHex(0xffe27a);
+    this.mesh.add(this.ring, this.sprite);
+    this.mesh.position.set(this.x, 0, this.z);
+    this.mesh.userData.entity = this;
+  }
+  get rect() { return { x0: this.cx, z0: this.cz, x1: this.cx + this.size - 1, z1: this.cz + this.size - 1 }; }
+}
+// la Corona fuori dal piedistallo: a terra o sopra la testa di chi la porta
+export function makeCrownMarker() {
+  const s = makeSprite('icon_crown', { width: 0.7 });
+  s.renderOrder = 13;
+  return s;
 }

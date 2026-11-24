@@ -1,6 +1,7 @@
 // GPverse — Ombra & Corona — IA nemica (aggiornata alla V.0.2.0)
 // Macchina a stati semplice: economia → espansione → esercito → ondate di attacco.
 import { BUILDINGS, ERAS, HEROES } from './config.js';
+import { siteOf, hireBlock, hireBjarn, HIRE_BJARN } from './creatures.js';
 
 const PROFILE = {
   easy:   { villagers: 9,  firstWave: 300, wave: 3, think: 1.6, era2: 10, era3: 14 },
@@ -80,6 +81,8 @@ export class AI {
       if (g.canAfford(this.f, info.cost)) g.train(tc, 'hero');
     }
     if (hero) this.useHero(hero);
+    if (hero) this.crownPlan(hero, tc, era);
+    this.bjarnPlan(army, era, res);
 
     // 3. cantieri senza costruttori
     for (const b of blds) {
@@ -161,6 +164,30 @@ export class AI {
       if (i === 1 && close.length < 2) return;
       g.cast(h, i);
     });
+  }
+
+  // la Corona: nella Terza Era l'eroe va a prenderla; chi la porta va a distruggerla (o, per l'Ombra, a casa)
+  crownPlan(h, tc, era) {
+    const g = this.g, c = g.crown;
+    if (!c || h.state === 'attack') return;
+    if (c.holder === h) {
+      const dest = this.f === 'shadow' ? tc : siteOf(g, 'rift');
+      if (dest && Math.hypot(h.x - dest.x, h.z - dest.z) > 2 && h.state !== 'move') g.orderMove([h], dest.x, dest.z);
+      return;
+    }
+    if (c.holder || era < 3 || h.hp < h.maxHp * 0.6) return;
+    const pos = c.ground || c.site;
+    if (h.state === 'idle') g.orderMove([h], pos.x, pos.z);
+  }
+  // Bjarn: se c'è oro avanzato, manda un guerriero alla capanna e lo ingaggia
+  bjarnPlan(army, era, res) {
+    const g = this.g, hut = siteOf(g, 'bear_hut');
+    if (!hut || hut.hired || this.f === 'shadow' || era < 2 || res.gold < HIRE_BJARN.gold + 100 || res.food < HIRE_BJARN.food + 100) return;
+    if (!hireBlock(g, this.f, hut)) { hireBjarn(g, this.f, hut); return; }
+    if (!army.some(a => a.state === 'move' && a.bjarnRun)) {
+      const a = army.find(x => x.state === 'idle' && !x.isHero);
+      if (a) { g.orderMove([a], hut.x, hut.z); a.bjarnRun = true; }
+    }
   }
 
   closest(list, t) {

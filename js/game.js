@@ -5,6 +5,7 @@ import { buildWorld, findPath, hideNode, makeRng } from './world.js';
 import { Territory, BONUS } from './territory.js';
 import { Seasons, UPKEEP_EVERY } from './seasons.js';
 import { pickMap } from './maps.js';
+import { placeSites, spawnGuardians, createCrown, updateWild, onKilled, siteOf } from './creatures.js';
 import { Unit, Building } from './entities.js';
 import * as THREE from '../lib/three.module.js';
 
@@ -20,7 +21,7 @@ function distRect(x, z, r) {
   return Math.hypot(dx, dz);
 }
 function rectOf(t) {
-  if (t.kind === 'building') return t.rect;
+  if (t.kind === 'building' || t.kind === 'site') return t.rect;
   if (t.kind === 'node') return { x0: t.x, z0: t.z, x1: t.x, z1: t.z };
   return null;
 }
@@ -41,10 +42,11 @@ export class Game {
     this.map = pickMap(map, () => (seed % 997) / 997);
     this.time = 0;
     this.over = null;              // 'win' | 'lose'
-    this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [], season: [], territory: [] };
+    this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [], season: [], territory: [], alarm: [], site: [] };
     const w = buildWorld(scene, seed, this.map, [this.player, this.enemy]);
     this.grid = w.grid; this.nodes = w.nodes; this.ground = w.ground;
     this.bases = w.bases; this.groundCanvas = w.groundCanvas;
+    this.sites = placeSites(this, makeRng(seed + 11));   // tane, rovine, Corona... (V.0.7.0)
     this.territory = new Territory(scene, makeRng(seed + 7), this.nodes, this.bases);
     this.seasons = new Seasons();
     this.upkeepT = 0;
@@ -60,6 +62,8 @@ export class Game {
       for (let i = 0; i < 3; i++) this.spawnNear(tc, 'villager');
       if (f === this.player) this.spawnNear(tc, 'soldier');
     }
+    spawnGuardians(this);
+    this.crown = createCrown(this);
   }
 
   on(ev, fn) { this.listeners[ev].push(fn); }
@@ -208,6 +212,7 @@ export class Game {
     h.level = level;
     h.maxHp = st.hp + (level - 1) * HERO_PER_LEVEL.hp;
     h.attack = st.attack + (level - 1) * HERO_PER_LEVEL.attack;
+    if (h.attackBase) { h.attackBase = h.attack; h.attack = Math.round(h.attack * 1.5); } // porta la Corona
     h.hp = Math.min(h.maxHp, h.hp + Math.max(0, gained) * HERO_PER_LEVEL.hp);
     if (silent) h.hp = h.maxHp;
     h.levelSprite.userData.draw(level);
@@ -225,7 +230,7 @@ export class Game {
   giveXp(victim) {
     const val = XP_VALUE[victim.type] || 10;
     for (const h of this.units) {
-      if (!h.alive || !h.isHero || h.faction === victim.faction) continue;
+      if (!h.alive || !h.isHero || h.faction === victim.faction || !this.players[h.faction]) continue;
       if (dist(h.x, h.z, victim.x, victim.z) > XP_RANGE) continue;
       h.xp += val;
       const hd = this.players[h.faction].heroData; if (hd) hd.xp = h.xp;
@@ -306,6 +311,10 @@ export class Game {
 
   // ---- ordini ------------------------------------------------------------
   setPath(u, goal) {
+    if (u.flying) { // le aquile volano dritte
+      const gx = goal.x0 !== undefined ? (goal.x0 + goal.x1 + 1) / 2 : goal.x + 0.5, gz = goal.z0 !== undefined ? (goal.z0 + goal.z1 + 1) / 2 : goal.z + 0.5;
+      u.path = [{ x: gx, z: gz }]; u.repath = 0.5; return;
+    }
     u.path = findPath(this.grid, u.x, u.z, goal) || [];
     u.repath = 0.6 + Math.random() * 0.3;
   }
@@ -364,6 +373,11 @@ export class Game {
   smartOrder(units, target, x, z) {
     if (!units.length) return;
     const f = units[0].faction;
+    if (target && target.kind === 'site') {
+      const vill = units.filter(u => u.type === 'villager');
+      if (target.type === 'deep_mine' && vill.length) { this.orderGather(vill, target); const r = units.filter(u => u.type !== 'villager'); if (r.length) this.orderMove(r, x, z); return; }
+      return this.orderMove(units, target.x, target.z);
+    }
     if (target && target.kind !== 'node' && target.faction !== f) return this.orderAttack(units, target);
     if (target && target.kind === 'node') {
       const vill = units.filter(u => u.type === 'villager');
@@ -389,6 +403,7 @@ export class Game {
   // ---- ricerche ----------------------------------------------------------
   nearestNode(type, x, z, maxD = 20, faction = null) {
     let best = null, bd = maxD;
+    if (type === 'deep_mine') { const m = siteOf(this, 'deep_mine'); return m && dist(x, z, m.x, m.z) < maxD + 10 ? m : null; }
     if (type === 'farm') { // le fattorie sono edifici della propria fazione, cibo infinito
       for (const b of this.buildings) {
         if (!b.alive || !b.built || b.type !== 'farm' || b.faction !== faction) continue;
@@ -450,7 +465,8 @@ export class Game {
     e.alive = false;
     this.scene.remove(e.mesh);
     this.giveXp(e);
-    if (e.isHero) {
+    onKilled(this, e);
+    if (e.isHero && this.players[e.faction]) {
       this.players[e.faction].heroData = { level: e.level, xp: e.xp, summoned: true };
       this.msg(e.faction, `${FACTIONS[e.faction].names.hero} ${e.faction === 'elves' ? 'è caduta' : 'è caduto'}! Puoi rianimare l'eroe dal centro.`);
       if (e.faction !== this.player) this.msg(this.player, `${FACTIONS[e.faction].names.hero} ${e.faction === 'elves' ? 'è caduta' : 'è caduto'}!`);
@@ -464,10 +480,11 @@ export class Game {
     }
     this.emit('died', e);
   }
-  finish(result) {
+  finish(result, reason = null) {
     if (this.over) return;
     this.over = result;
-    this.emit('over', result);
+    this.overReason = reason;
+    this.emit('over', result, reason);
   }
 
   // ---- ciclo -------------------------------------------------------------
@@ -533,6 +550,7 @@ export class Game {
     this.updateArrows(dt);
 
     for (const u of this.units) if (u.alive) this.updateUnit(u, dt);
+    updateWild(this, dt);
     this.separate(dt);
 
     // pulizia
@@ -592,13 +610,14 @@ export class Game {
 
   updateUnit(u, dt) {
     u.cd -= dt; u.moving = false;
+    if (u.regen && u.faction !== 'neutral' && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.regen * dt);
     if (u.isHero) {
       for (let i = 0; i < u.abilityCd.length; i++) if (u.abilityCd[i] > 0) u.abilityCd[i] -= dt;
       if (u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + dt * 1.5); // l'eroe si rigenera lentamente
     }
     switch (u.state) {
       case 'idle':
-        if (u.isMilitary) {
+        if (u.isMilitary && u.faction !== 'neutral') {   // le creature selvagge decidono da sole (creatures.js)
           const e = this.nearestEnemy(u, AGGRO_RANGE);
           if (e) this.orderAttack([u], e);
         }
@@ -627,7 +646,8 @@ export class Game {
           if (u.cd <= 0) {
             u.cd = u.cooldown; u.swing = 0.25;
             const atk = u.attack * (u.buffUntil > this.time ? 1.5 : 1);
-            if (u.ranged) this.shoot(u, t, atk); else this.damage(t, atk, u);
+            if (u.ranged && !u.creature) this.shoot(u, t, atk); else this.damage(t, atk, u);
+            if (u.splash) for (const o of this.units) if (o !== t && o.alive && o.faction !== u.faction && dist(o.x, o.z, t.x, t.z) < u.splash) this.damage(o, atk * 0.5, u);
           }
         } else this.approach(u, t, dt);
         break;
@@ -704,10 +724,16 @@ export class Game {
     }
     if (reach(u, n) <= 0.8) {
       u.path = [];
-      const isFarm = n.kind === 'building';
+      const isFarm = n.kind !== 'node';   // fattoria o Miniera Profonda: non si esauriscono
       u.face = isFarm ? Math.atan2(n.x - u.x, n.z - u.z) : Math.atan2(n.x + 0.5 - u.x, n.z + 0.5 - u.z);
       if (u.swing <= 0) u.swing = 0.35;
-      if (isFarm) { u.carry += GATHER_RATE * 0.8 * dt * this.gatherMul(u.faction, 'food', n.cx, n.cz); u.carryRes = 'food'; return; }
+      if (isFarm) {
+        const res = n.res || 'food';
+        const amt = GATHER_RATE * (n.kind === 'site' ? 1.3 : 0.8) * dt * this.gatherMul(u.faction, res, n.cx, n.cz);
+        u.carry += amt; u.carryRes = res;
+        if (n.kind === 'site') { n.mined += amt; n.minedBy = n.minedBy || {}; n.minedBy[u.faction] = (n.minedBy[u.faction] || 0) + amt; }
+        return;
+      }
       const take = Math.min(GATHER_RATE * dt, n.amount);
       n.amount -= take;
       u.carry += take * this.gatherMul(u.faction, n.res, n.x, n.z); u.carryRes = n.res;

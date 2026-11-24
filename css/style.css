@@ -223,3 +223,26 @@ small .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 1px;
 #idleBtn.dead { opacity: .45; }
 #idleCount { position: absolute; right: -4px; top: -4px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: #d9822b; color: #fff; font-size: 11px; line-height: 16px; font-weight: bold; }
 #idleCount:empty { display: none; }
+
+/* creature e Corona (V.0.7.0) */
+#crownInfo { font-size: 13px; white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: #2a1a33; border: 1px solid #b45cff; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; }
+#crownInfo.mine { background: #3a2a10; border-color: var(--gold); }
+#crownInfo.theirs { background: #4a1414; border-color: #ff6b6b; }
+#crownInfo .ico { width: 18px; height: 18px; }
+.xp.corr i { background: linear-gradient(90deg, #5a2a7a, #b45cff); }
+.xp.corr { height: 18px; }
+.xp.corr span { line-height: 18px; }
+.xp.corr .ico { width: 14px; height: 14px; }
+@media (max-width: 720px) { #crownInfo { font-size: 11px; padding: 1px 6px; } }
+
+/* smartphone: barra in alto su due righe, testi delle barre leggibili (V.0.7.0) */
+.xp span, .hp span, .qbar span { display: block; white-space: nowrap; }
+@media (max-width: 720px) {
+  #topbar { flex-wrap: wrap; row-gap: 4px; padding-bottom: 4px; }
+  #res { flex-wrap: nowrap; gap: 7px; font-size: 11px; width: 100%; justify-content: space-between; }
+  #res .ico { width: 15px; height: 15px; }
+  #topbar .right { width: 100%; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
+  #camBtns { top: 100px; }
+  #camBtns button { width: 40px; height: 40px; }
+  .xp span { font-size: 10px; line-height: 14px; }
+}

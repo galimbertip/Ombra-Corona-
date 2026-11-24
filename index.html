@@ -12,10 +12,10 @@
   <!-- Versione della build: va aggiornata insieme a js/version.js. Serve a non far mescolare
        al browser file vecchi e nuovi dopo un aggiornamento (GitHub Pages tiene i file in cache). -->
   <script>
-    window.BUILD = 'V.0.6.1';
+    window.BUILD = 'V.0.7.0';
     (function () {
       var v = '?v=' + window.BUILD;
-      var mods = ['main', 'version', 'config', 'assets', 'world', 'entities', 'game', 'ai', 'maps', 'territory', 'seasons'];
+      var mods = ['main', 'version', 'config', 'assets', 'world', 'entities', 'game', 'ai', 'maps', 'territory', 'seasons', 'creatures'];
       var map = { imports: {} };
       mods.forEach(function (m) { map.imports['./js/' + m + '.js'] = './js/' + m + '.js' + v; });
       map.imports['./lib/three.module.js'] = './lib/three.module.js' + v;
@@ -39,6 +39,7 @@
       <div class="right">
         <span id="era" title="Era attuale">Prima Era</span>
         <span id="season" title="Stagione e tempo rimasto"></span>
+        <span id="crownInfo" hidden title="Corona d'Ombra: clic per trovarla"></span>
         <span id="clock">0:00</span>
         <button class="version-badge" title="Storia delle versioni"></button>
         <button id="menuBtn" title="Pausa">☰</button>
