@@ -609,14 +609,19 @@ function refreshPanel(force = false) {
         const revive = t === 'hero' && game.players[PLAYER].heroData;
         const label = t === 'era' ? `Avanza alla ${ERAS[game.players[PLAYER].era + 1].name}` : t === 'hero' ? `${revive ? 'Rianima' : 'Evoca'} ${FACTIONS[PLAYER].names.hero}` : `Addestra ${FACTIONS[PLAYER].names[t]}`;
         const locked = block && block.startsWith('Serve');
+        if (t !== 'era' && t !== 'hero' && !block) buttons.push({ id: 'five-' + t, label: '×5', sub: '', ok: true, small: true, title: `Metti in coda 5 × ${FACTIONS[PLAYER].names[t]} (anche Maiuscolo + clic)` });
         buttons.push({ id: 'train-' + t, label, sub: block && t !== 'villager' ? block : costText(info.cost), ok: !block, cls: (t === 'era' ? 'era' : t === 'hero' ? 'ability' : locked ? 'locked' : '') + (game.canAfford(PLAYER, info.cost) ? '' : ' poor'), pic: url(t === 'era' ? 'emblem' : `unit_${PLAYER}_${t}`) });
       }
       if (e.queue.length) buttons.push({ id: 'cancel', label: 'Annulla ultimo', sub: '', ok: true });
+      if (BUILDINGS[e.type].trains.some(t => t !== 'hero')) {
+        const rt = e.repeat || e.lastType;
+        buttons.push({ id: 'repeat', label: e.repeat ? '🔁 Continuo: attivo' : '🔁 Continuo', sub: rt ? FACTIONS[PLAYER].names[rt] : 'addestra prima un\'unità', ok: true, cls: e.repeat ? 'on' : '' });
+      }
     }
   }
   buttons.push({ id: 'desel', label: '✕', sub: '', ok: true, small: true });
   const cmds = buttons.map(b =>
-    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''} ${b.cls || ''}" ${b.ok ? '' : 'disabled'}>${b.pic ? `<img class="pic" src="${b.pic}" alt="">` : ''}<span class="lbl">${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}</span>${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('');
+    `<button data-cmd="${b.id}" class="${b.small ? 'small' : ''} ${b.cls || ''}" ${b.title ? `title="${b.title}"` : ''} ${b.ok ? '' : 'disabled'}>${b.pic ? `<img class="pic" src="${b.pic}" alt="">` : ''}<span class="lbl">${b.label}${b.sub ? `<small>${b.sub}</small>` : ''}</span>${b.key && !isTouch ? `<kbd>${b.key}</kbd>` : ''}</button>`).join('');
   // si ridisegna solo la parte cambiata: così un clic non va perso mentre il pannello si aggiorna
   if (force || panelKey !== 'sel:' + portrait || !el.querySelector('.info')) {
     panelKey = 'sel:' + portrait;
@@ -636,6 +641,16 @@ $('#panel').addEventListener('click', ev => {
   if (cmd.startsWith('build-')) {
     const t = cmd.slice(6);
     if (!explainMissing(BUILDINGS[t].cost)) startPlacing(t);
+  } else if (cmd.startsWith('five-') || (cmd.startsWith('train-') && ev.shiftKey && !['era', 'hero'].includes(cmd.slice(6)))) {
+    const t = cmd.replace(/^(five|train)-/, '');
+    if (!explainMissing(game.queueInfo(PLAYER, t).cost)) {
+      const n = game.trainMany(b, t, 5);
+      toast(n === 5 ? `5 × ${queueLabel(PLAYER, t)} in coda` : n ? `${n} × ${queueLabel(PLAYER, t)} in coda (${b.queue.length >= 10 ? 'coda piena' : 'risorse finite'})` : 'Coda piena');
+    }
+  } else if (cmd === 'repeat') {
+    if (b.repeat) { b.repeat = null; toast('Addestramento continuo spento'); }
+    else if (b.lastType) { b.repeat = b.lastType; if (!b.queue.length) game.train(b, b.repeat, true); toast(`Addestramento continuo: ${queueLabel(PLAYER, b.repeat)} finché ci sono risorse`); }
+    else toast('Addestra prima un\'unità: poi il continuo la ripeterà');
   } else if (cmd.startsWith('train-')) {
     const t = cmd.slice(6);
     if (!explainMissing(game.queueInfo(PLAYER, t).cost) && game.train(b, t)) {

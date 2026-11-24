@@ -246,3 +246,7 @@ small .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 1px;
   #camBtns button { width: 40px; height: 40px; }
   .xp span { font-size: 10px; line-height: 14px; }
 }
+
+/* coda multipla e continuo (V.0.7.1) */
+.cmds button.on { border-color: #7dff7d; background: #1f3320; }
+.cmds button.small[data-cmd^="five-"] { font-weight: bold; color: var(--gold); }

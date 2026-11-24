@@ -10,6 +10,11 @@ A ogni rilascio aggiorna **entrambi**, più `window.BUILD` in `index.html`.
 
 ---
 
+## V.0.7.1 — Addestramento in serie · 2026-11-24
+- Coda di addestramento più lunga: fino a 10 unità per edificio
+- Pulsante ×5 accanto a ogni unità (o Maiuscolo + clic): mette in coda 5 unità in un colpo, finché bastano le risorse
+- Addestramento continuo 🔁: finita un'unità ne riparte subito un'altra uguale, finché ci sono risorse; si accende e spegne per ogni edificio
+
 ## V.0.7.0 — Creature e Corona d'Ombra · 2026-11-24
 - Creature selvagge a guardia dei luoghi della mappa: lupi, Troll delle Caverne e un Drago. Attaccano chi si avvicina e poi tornano alla tana
 - Luoghi nuovi, sempre in posizioni giuste per entrambe le basi: Tana del Drago, Caverne dei Troll e Rovine con tesori da conquistare

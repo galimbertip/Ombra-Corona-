@@ -13,6 +13,7 @@ const ARROW_GEO = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 4).rotateX(Math.PI
 const ARROW_MAT = new THREE.MeshBasicMaterial({ color: 0x2b1d0e, depthTest: false });
 
 const dist = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
+export const QUEUE_MAX = 10;
 
 // distanza da un punto al bordo di un rettangolo di celle
 function distRect(x, z, r) {
@@ -173,15 +174,22 @@ export class Game {
     }
     return null;
   }
-  train(b, type) {
+  train(b, type, quiet = false) {
     const why = this.trainBlock(b, type);
-    if (why) { this.msg(b.faction, why); return false; }
-    if (b.queue.length >= 5) { this.msg(b.faction, 'Coda piena'); return false; }
+    if (why) { if (!quiet) this.msg(b.faction, why); return false; }
+    if (b.queue.length >= QUEUE_MAX) { if (!quiet) this.msg(b.faction, 'Coda piena'); return false; }
     const { cost } = this.queueInfo(b.faction, type);
-    if (!this.canAfford(b.faction, cost)) { this.msg(b.faction, 'Risorse insufficienti'); return false; }
+    if (!this.canAfford(b.faction, cost)) { if (!quiet) this.msg(b.faction, 'Risorse insufficienti'); return false; }
     this.pay(b.faction, cost);
+    if (type !== 'era' && type !== 'hero') b.lastType = type;
     b.queue.push({ type, t: 0, cost, time: this.queueInfo(b.faction, type).time });
     return true;
+  }
+  // più unità in un colpo (V.0.7.1): restituisce quante ne sono entrate in coda
+  trainMany(b, type, n) {
+    let k = 0;
+    while (k < n && this.train(b, type, k > 0)) k++;
+    return k;
   }
   cancelTrain(b, i = b.queue.length - 1) {
     const [q] = b.queue.splice(i, 1);
@@ -518,6 +526,7 @@ export class Game {
 
     // code di addestramento
     for (const b of this.buildings) {
+      if (b.repeat && b.alive && b.built && !b.queue.length && (this._repT = (this._repT || 0) + dt) > 1) this.train(b, b.repeat, true);
       if (!b.alive || !b.built || !b.queue.length) continue;
       const q = b.queue[0];
       if (q.type !== 'era') {
@@ -530,6 +539,8 @@ export class Game {
         b.queue.shift();
         if (q.type === 'era') this.advanceEra(b.faction);
         else this.spawnNear(b, q.type);
+        // addestramento continuo: appena finita un'unità ne riparte un'altra uguale, se ci sono risorse
+        if (b.repeat && !b.queue.length) this.train(b, b.repeat, true);
       }
     }
 

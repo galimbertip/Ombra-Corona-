@@ -12,9 +12,19 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.7.0';
+export const VERSION = 'V.0.7.1';
 
 export const HISTORY = [
+  {
+    version: 'V.0.7.1',
+    date: '2026-11-24',
+    title: 'Addestramento in serie',
+    changes: [
+      'Coda di addestramento più lunga: fino a 10 unità per edificio',
+      'Pulsante ×5 accanto a ogni unità (o Maiuscolo + clic): mette in coda 5 unità in un colpo, finché bastano le risorse',
+      'Addestramento continuo 🔁: finita un\'unità ne riparte subito un\'altra uguale, finché ci sono risorse; si accende e spegne per ogni edificio',
+    ],
+  },
   {
     version: 'V.0.7.0',
     date: '2026-11-24',
