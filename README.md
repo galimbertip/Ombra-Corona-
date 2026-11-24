@@ -1,6 +1,6 @@
 # Ombra & Corona · GPverse
 
-**Versione corrente: V.0.7.1 (Addestramento in serie)** · [Storia delle versioni](CHANGELOG.md) · [Documento di design](docs/GDD.md)
+**Versione corrente: V.0.7.2 (Camminata)** · [Storia delle versioni](CHANGELOG.md) · [Documento di design](docs/GDD.md)
 
 RTS 3D leggero nel browser, in un mondo fantasy dal sapore tolkieniano con nomi originali.
 Il motore viene da *Age of Empires*, gli eroi da *Warcraft III*, i territori e le stagioni da *Northgard*.

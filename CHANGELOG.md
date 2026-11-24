@@ -10,6 +10,13 @@ A ogni rilascio aggiorna **entrambi**, più `window.BUILD` in `index.html`.
 
 ---
 
+## V.0.7.2 — Camminata · 2026-11-24
+- Camminata nuova senza saltelli: a ogni passo il personaggio dondola sui piedi da un lato all'altro, con un leggero appoggio a terra
+- Il ritmo dei passi segue la velocità di ogni unità, così i piedi non sembrano scivolare
+- Andature diverse: passo normale per fanti ed eroi, passo pesante per troll, Arborei, Bjarn e Flagello, trotto per cavalli, arieti, lupi e drago
+- Le aquile battono le ali e planano invece di camminare
+- Partenze e fermate morbide, e da fermi i personaggi respirano appena
+
 ## V.0.7.1 — Addestramento in serie · 2026-11-24
 - Coda di addestramento più lunga: fino a 10 unità per edificio
 - Pulsante ×5 accanto a ogni unità (o Maiuscolo + clic): mette in coda 5 unità in un colpo, finché bastano le risorse

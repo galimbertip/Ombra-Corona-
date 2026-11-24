@@ -12,9 +12,21 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.7.1';
+export const VERSION = 'V.0.7.2';
 
 export const HISTORY = [
+  {
+    version: 'V.0.7.2',
+    date: '2026-11-24',
+    title: 'Camminata',
+    changes: [
+      'Camminata nuova senza saltelli: a ogni passo il personaggio dondola sui piedi da un lato all\'altro, con un leggero appoggio a terra',
+      'Il ritmo dei passi segue la velocità di ogni unità, così i piedi non sembrano scivolare',
+      'Andature diverse: passo normale per fanti ed eroi, passo pesante per troll, Arborei, Bjarn e Flagello, trotto per cavalli, arieti, lupi e drago',
+      'Le aquile battono le ali e planano invece di camminare',
+      'Partenze e fermate morbide, e da fermi i personaggi respirano appena',
+    ],
+  },
   {
     version: 'V.0.7.1',
     date: '2026-11-24',

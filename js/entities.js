@@ -4,6 +4,20 @@ import { unitDef, BUILDINGS, FACTION_MODS, VIEW, CAM_PITCH, CREATURES } from './
 import { makeSprite, TINT } from './assets.js';
 
 let NEXT_ID = 1;
+// tipi di andatura: sway = dondolio (radianti), bob = sollevamento tra un passo e l'altro, squash = schiacciamento all'appoggio,
+// cadence = passi per unità di velocità (più alto = passi più corti e fitti)
+const GAITS = {
+  biped:   { sway: 0.06, bob: 0.035, squash: 0.025, cadence: 3.4 },
+  heavy:   { sway: 0.045, bob: 0.02, squash: 0.03, cadence: 2.4 },   // troll, Arboreo, Flagello, Bjarn
+  quad:    { sway: 0.025, bob: 0.045, squash: 0.015, cadence: 3.0 }, // cavalli, lupi, arieti, drago
+  flyer:   { flyer: true },
+};
+function gaitOf(u) {
+  if (u.type === 'eagle') return GAITS.flyer;
+  if (u.type === 'wolf' || u.type === 'dragon' || (u.type === 'knight' && u.faction !== 'elves')) return GAITS.quad;
+  if (['troll', 'flame', 'bjarn'].includes(u.type) || (u.type === 'knight' && u.faction === 'elves')) return GAITS.heavy;
+  return GAITS.biped;
+}
 const CORRUPT = new THREE.Color(0.45, 0.2, 0.6);
 const COS_P = Math.cos(CAM_PITCH), SIN_P = Math.sin(CAM_PITCH);
 // altezza nel mondo a cui un punto appare "h" più in alto sullo schermo
@@ -101,6 +115,7 @@ export class Unit {
     if (this.flying) this.lift = 1.1;
     this.sprite.center.set(0.5, 0.04);
     this.baseW = this.sprite.scale.x;
+    this.baseH = this.sprite.scale.y;
     this.facesLeft = FACES_LEFT.has(this.spriteName);
     this.model = this.sprite;           // usato dalla simulazione per le animazioni
     this.mesh = new THREE.Group();
@@ -133,22 +148,48 @@ export class Unit {
   get isHero() { return this.type === 'hero'; }
 
   // aggiorna posa: verso (specchiando lo sprite), passo e colpo
+  // camminata (V.0.7.2): niente più saltelli. Il disegno oscilla sui piedi a ogni passo (dondolio),
+  // si abbassa appena quando il piede tocca terra e si allunga un poco a metà passo.
+  // La cadenza segue la velocità, così i piedi non "pattinano". Inizio e fine del passo sono morbidi.
   pose(dt) {
     if (this.face !== undefined) {
       const screenX = Math.sin(this.face - VIEW.yaw);
       if (Math.abs(screenX) > 0.15) this.lookRight = screenX > 0;
     }
     const flip = (this.lookRight === false) !== this.facesLeft;
-    this.sprite.scale.x = flip ? -this.baseW : this.baseW;
-    this.anim += dt * (this.moving ? 12 : 0);
-    this.sprite.position.y = (this.lift ? this.lift + Math.sin(this.anim * 0.3 + this.id) * 0.12 : 0) + (this.moving && !this.lift ? Math.abs(Math.sin(this.anim)) * 0.07 : 0);
-    if (this.lift) this.anim += dt * 4;
-    this.sprite.material.rotation = this.swing > 0 ? (flip ? 0.12 : -0.12) : 0;
+    const gait = this.gait || (this.gait = gaitOf(this));
+    // ampiezza del passo che cresce e cala piano (0 = fermo, 1 = in marcia)
+    this.walk = (this.walk || 0) + ((this.moving ? 1 : 0) - (this.walk || 0)) * Math.min(1, dt * 8);
+    this.anim += dt * (gait.flyer ? 7 : this.speed * gait.cadence);
+    const ph = this.anim, w = this.walk;
+    let rot = 0, bob = 0, sy = 1, sx = 1;
+    if (gait.flyer) {
+      // ali: si allarga e si stringe, e plana su e giù
+      sy = 1 - 0.07 * (0.5 + 0.5 * Math.sin(ph));
+      sx = 1 + 0.05 * Math.sin(ph);
+      bob = this.lift + Math.sin(ph * 0.25 + this.id) * 0.12;
+    } else {
+      // dondolio da un piede all'altro (pivot ai piedi)
+      rot = Math.sin(ph) * gait.sway * w;
+      // contatto col terreno due volte per ciclo: piccolo abbassamento
+      const contact = Math.abs(Math.cos(ph));
+      bob = (1 - contact) * gait.bob * w;
+      sy = 1 - contact * gait.squash * w;
+      sx = 1 + contact * gait.squash * 0.5 * w;
+      // da fermo respira appena
+      if (w < 0.05) sy *= 1 + Math.sin(performance.now() / 700 + this.id) * 0.008;
+    }
+    this.sprite.scale.set((flip ? -this.baseW : this.baseW) * sx, this.baseH * sy, 1);
+    this.sprite.position.y = bob;
+    // colpo d'arma: leggero scatto in avanti
+    if (this.swing > 0) rot += flip ? 0.12 : -0.12;
+    this.sprite.material.rotation = rot;
     // lampo rosso quando viene colpito
     if (this.hitT > 0) { this.hitT -= dt; this.sprite.material.color.setRGB(1, 0.55, 0.55); }
     else this.sprite.material.color.copy(TINT);
     if (this.corruption > 0) this.sprite.material.color.lerp(CORRUPT, Math.min(0.7, this.corruption * 0.8));
   }
+
 }
 
 // --- edifici ---------------------------------------------------------------------
