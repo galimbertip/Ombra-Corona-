@@ -70,8 +70,9 @@ export function placeSites(game, rng) {
   // Corona e Fenditura agli estremi opposti: portarla a destinazione è un viaggio lungo
   const map = game.map || {};
   const SLOT = { lair: 22, eagle_nest: -8, bear_hut: 15, deep_mine: -15 };
-  place('crown', at(0, 8 * flip));
-  place('rift', at(0, -23 * flip));
+  // le missioni della campagna possono togliere Corona e Fenditura (crown: false / rift: false)
+  if (map.crown !== false) place('crown', at(0, 8 * flip));
+  if (map.rift !== false) place('rift', at(0, -23 * flip));
   // il resto dipende dall'ambientazione (V.0.8.0)
   for (const type of map.sites || Object.keys(SLOT)) if (SLOT[type] != null) place(type, at(0, SLOT[type] * flip));
   // a coppie, specchiate (una per base) e tutte dal lato della Corona e del drago:
@@ -155,7 +156,7 @@ export function updateWild(game, dt) {
         const what = Object.entries(s.treasure).map(([k, v]) => `${v} ${({ gold: 'oro', food: 'cibo', wood: 'legno', stone: 'pietra' })[k]}`).join(', ');
         game.msg(u.faction, `Tesoro di ${s.name}: ${what}!`);
         if (u.faction !== game.player) game.msg(game.player, `Il nemico ha preso il tesoro di ${s.name}`);
-        s.treasure = null;
+        s.treasure = null; s.takenBy = u.faction;
         game.emit('site', s);
       }
     }

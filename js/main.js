@@ -13,6 +13,7 @@ import { CROWN, HIRE_BJARN, MINE_AWAKEN, hireBlock, hireBjarn } from './creature
 import { SEASONS } from './seasons.js';
 import { TINT, applyTint } from './assets.js';
 import { Game } from './game.js';
+import { CAMPAIGNS, findMission } from './campaign.js';
 import { AI } from './ai.js';
 import { updateBars } from './entities.js';
 
@@ -874,17 +875,23 @@ $('#menuBtn').onclick = () => togglePause(true);
 $('#resume').onclick = () => togglePause(false);
 $('#quit').onclick = () => { togglePause(false); backToMenu(); };
 
-function startGame() {
+let currentMission = null;   // missione in corso (null = partita libera)
+function startGame(mission = null) {
+  currentMission = mission;
   const difficulty = $('#difficulty').value;
-  PLAYER = selectedFaction;
-  const map = $('#mapSel').value;
-  const others = Object.keys(FACTIONS).filter(f => f !== PLAYER);
-  const enemySel = $('#enemySel').value;
-  const enemy = others.includes(enemySel) ? enemySel : others[Math.floor(Math.random() * others.length)];
-  progress.faction = PLAYER; progress.map = map; progress.enemy = enemySel; saveProgress(progress);
+  let map = $('#mapSel').value, enemy;
+  if (mission) {
+    PLAYER = findMission(mission.id).campaign.faction; enemy = mission.enemy;
+  } else {
+    PLAYER = selectedFaction;
+    const others = Object.keys(FACTIONS).filter(f => f !== PLAYER);
+    const enemySel = $('#enemySel').value;
+    enemy = others.includes(enemySel) ? enemySel : others[Math.floor(Math.random() * others.length)];
+    progress.faction = PLAYER; progress.map = map; progress.enemy = enemySel; saveProgress(progress);
+  }
   if (game) disposeScene();
   makeScene();
-  game = new Game(scene, { difficulty, player: PLAYER, enemy, map });
+  game = new Game(scene, { difficulty, player: PLAYER, enemy, map, mission });
   ai = new AI(game, game.enemy);
   game.on('message', toast);
   game.on('ability', abilityEffect);
@@ -902,12 +909,22 @@ function startGame() {
   game.on('died', e => { if (selection.includes(e)) setSelection(selection.filter(x => x !== e)); });
   game.on('alarm', (t, sub) => banner(t, sub));
   game.on('site', () => { if (selection[0]?.kind === 'site') refreshPanel(true); });
+  game.on('objectives', renderObjectives);
   game.on('over', (result, reason) => {
+    $('#nextMission').hidden = true;
+    if (currentMission && result === 'win') {
+      const { campaign, index } = findMission(currentMission.id);
+      progress.campaign = progress.campaign || {};
+      progress.campaign[campaign.faction] = Math.max(progress.campaign[campaign.faction] || 0, index + 1);
+      $('#nextMission').hidden = !campaign.missions[index + 1];
+    }
     progress.games++;
     if (result === 'win') { progress.wins++; progress.bestWin = progress.bestWin ? Math.min(progress.bestWin, game.time) : game.time; }
     else progress.losses++;
     saveProgress(progress);
-    $('#overTitle').textContent = result === 'win' ? 'Vittoria!' : 'Sconfitta';
+    $('#overTitle').textContent = currentMission ? (result === 'win' ? 'Missione compiuta!' : 'Missione fallita') : result === 'win' ? 'Vittoria!' : 'Sconfitta';
+    $('#again').textContent = currentMission ? 'Riprova la missione' : 'Rigioca';
+    $('#again').classList.toggle('primary', $('#nextMission').hidden);
     $('#overText').textContent = reason ? reason : result === 'win'
       ? `La base nemica (${FACTIONS[game.enemy].names.tc}) è caduta in ${fmtTime(game.time)}. ${FACTIONS[PLAYER].name}: vittoria!`
       : `La vostra base (${FACTIONS[PLAYER].names.tc}) è stata distrutta. Vince ${FACTIONS[game.enemy].name}.`;
@@ -919,8 +936,10 @@ function startGame() {
   selection = []; placing = null; paused = false; selNodeMarker = null; flags.length = 0; effects.length = 0;
   $('#start').hidden = true; $('#over').hidden = true; $('#hud').hidden = false;
   refreshPanel(true);
-  toast(`${game.map.name}: raccogli risorse, costruisci case e una caserma. Distruggi la base nemica (${FACTIONS[game.enemy].names.tc})!`);
-  $('#mapInfo').textContent = `${game.map.name} · seme ${game.seed} · ${FACTIONS[PLAYER].name} contro ${FACTIONS[game.enemy].name}`;
+  if (mission) banner(mission.title, mission.place);
+  else toast(`${game.map.name}: raccogli risorse, costruisci case e una caserma. Distruggi la base nemica (${FACTIONS[game.enemy].names.tc})!`);
+  renderObjectives();
+  $('#mapInfo').textContent = mission ? `Missione: ${mission.title} · ${mission.place}` : `${game.map.name} · seme ${game.seed} · ${FACTIONS[PLAYER].name} contro ${FACTIONS[game.enemy].name}`;
 }
 function disposeScene() {
   resetMaterials();
@@ -957,14 +976,57 @@ $('#mapSel').innerHTML = MAPS.map(m => `<option value="${m.id}">${m.name}</optio
 $('#mapSel').value = progress.map || 'valle';
 const mapDesc = () => { const m = MAPS.find(x => x.id === $('#mapSel').value); $('#mapDesc').textContent = m ? m.desc : 'Un tipo di mappa a sorpresa'; };
 $('#mapSel').onchange = mapDesc; mapDesc();
-$('#play').onclick = startGame;
+$('#play').onclick = () => startGame();
 // la partita parte solo quando la grafica è caricata
 $('#play').disabled = true;
 $('#play').textContent = 'Caricamento grafica… 0%';
 loadAssets(p => { $('#play').textContent = `Caricamento grafica… ${Math.round(p * 100)}%`; })
-  .then(() => { $('#play').disabled = false; $('#play').textContent = 'Partita libera'; })
+  .then(() => { $('#play').disabled = false; $('#play').textContent = 'Partita libera'; $('#campBtn').disabled = false; })
   .catch(err => { $('#play').textContent = 'Errore nel caricare la grafica'; console.error(err); });
-$('#again').onclick = startGame;
+$('#again').onclick = () => startGame(currentMission);
+
+// ---- campagna (V.0.9.0) -------------------------------------------------------------
+function renderObjectives() {
+  const box = $('#objBox');
+  box.hidden = !game?.mission;
+  if (!game?.mission) return;
+  $('#objTitle').textContent = game.mission.def.title;
+  $('#objList').innerHTML = game.mission.objectives.map(o => `<li class="${o.done ? 'done' : ''}">${o.text}${o.optional ? ' <small>(facoltativo)</small>' : ''}</li>`).join('');
+}
+$('#objBox').onclick = () => $('#objBox').classList.toggle('min');
+function showCampaign(id = 'men') {
+  const c = CAMPAIGNS[id], done = progress.campaign?.[id] || 0;
+  $('#campTitle').textContent = c.name;
+  $('#campDesc').textContent = c.desc;
+  $('#missionList').innerHTML = c.missions.map((m, i) => `
+    <button data-m="${m.id}" ${i > done ? 'disabled' : ''}>
+      <span class="n">${i + 1}</span><span><b>${m.title}</b><small>${m.place}</small></span>
+      <span class="st">${i < done ? '✓' : i > done ? '🔒' : '▶'}</span>
+    </button>`).join('');
+  $('#start').hidden = true; $('#over').hidden = true; $('#briefing').hidden = true; $('#hud').hidden = true;
+  $('#campaign').hidden = false;
+}
+let briefed = null;
+function showBriefing(mission) {
+  briefed = mission;
+  $('#briefPlace').textContent = mission.place;
+  $('#briefTitle').textContent = mission.title;
+  $('#briefText').innerHTML = mission.intro.map(p => `<p>${p}</p>`).join('');
+  $('#briefObj').innerHTML = mission.objectives.map(o => `<li>${o.text}</li>`).join('');
+  $('#campaign').hidden = true; $('#briefing').hidden = false;
+}
+$('#campBtn').onclick = () => showCampaign('men');
+$('#campBack').onclick = () => { $('#campaign').hidden = true; $('#start').hidden = false; };
+$('#missionList').addEventListener('click', ev => { const b = ev.target.closest('button[data-m]'); if (b && !b.disabled) showBriefing(findMission(b.dataset.m).mission); });
+$('#briefBack').onclick = () => showCampaign('men');
+$('#briefGo').onclick = () => { $('#briefing').hidden = true; startGame(briefed); };
+$('#nextMission').onclick = () => {
+  const { campaign, index } = findMission(currentMission.id);
+  if (game) { disposeScene(); game = null; }
+  $('#over').hidden = true;
+  showCampaign(campaign.faction);
+  showBriefing(campaign.missions[index + 1]);
+};
 $('#toMenu').onclick = backToMenu;
 
 // ---- ciclo principale -------------------------------------------------------------

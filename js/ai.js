@@ -13,7 +13,7 @@ const RATIO = { bush: 0.5, tree: 0.25, gold: 0.18, stone: 0.07 };
 export class AI {
   constructor(game, faction = 'shadow') {
     this.g = game; this.f = faction;
-    this.p = PROFILE[game.difficulty] || PROFILE.normal;
+    this.p = { ...(PROFILE[game.difficulty] || PROFILE.normal), ...(game.missionDef?.ai || {}) };   // le missioni possono cambiarlo
     this.t = 0;
     this.waveSize = this.p.wave;
     this.waves = 0;

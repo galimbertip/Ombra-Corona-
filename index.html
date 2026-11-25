@@ -12,10 +12,10 @@
   <!-- Versione della build: va aggiornata insieme a js/version.js. Serve a non far mescolare
        al browser file vecchi e nuovi dopo un aggiornamento (GitHub Pages tiene i file in cache). -->
   <script>
-    window.BUILD = 'V.0.8.0';
+    window.BUILD = 'V.0.9.0';
     (function () {
       var v = '?v=' + window.BUILD;
-      var mods = ['main', 'version', 'config', 'assets', 'world', 'entities', 'game', 'ai', 'maps', 'territory', 'seasons', 'creatures'];
+      var mods = ['main', 'version', 'config', 'assets', 'world', 'entities', 'game', 'ai', 'maps', 'territory', 'seasons', 'creatures', 'campaign'];
       var map = { imports: {} };
       mods.forEach(function (m) { map.imports['./js/' + m + '.js'] = './js/' + m + '.js' + v; });
       map.imports['./lib/three.module.js'] = './lib/three.module.js' + v;
@@ -34,6 +34,7 @@
 
   <!-- HUD di gioco -->
   <div id="hud" hidden>
+    <aside id="objBox" hidden><b id="objTitle"></b><ul id="objList"></ul></aside>
     <header id="topbar">
       <div id="res"></div>
       <div class="right">
@@ -69,7 +70,7 @@
       <p class="tag">Uomini, Elfi, Nani e l'Ombra si contendono il Mondo di Mezzo</p>
       <div class="menu">
         <button id="play" class="primary">Partita libera</button>
-        <button disabled title="Arriva nella V.0.9.0">Campagna <small>in arrivo · V.0.9.0</small></button>
+        <button id="campBtn" disabled>Campagna <small>La Guerra della Corona · Uomini</small></button>
         <div id="factionPick" class="faction-pick"></div>
         <label>Avversario
           <select id="enemySel"></select>
@@ -92,6 +93,32 @@
     </div>
   </section>
 
+  <!-- Campagna (V.0.9.0) -->
+  <section id="campaign" class="screen" hidden>
+    <div class="card">
+      <p class="brand">Campagna</p>
+      <h2 id="campTitle"></h2>
+      <p id="campDesc" class="map-desc"></p>
+      <div id="missionList" class="missions"></div>
+      <div class="menu"><button id="campBack">Indietro</button></div>
+    </div>
+  </section>
+
+  <!-- Racconto della missione -->
+  <section id="briefing" class="screen" hidden>
+    <div class="card">
+      <p class="brand" id="briefPlace"></p>
+      <h2 id="briefTitle"></h2>
+      <div id="briefText" class="brief"></div>
+      <h3>Obiettivi</h3>
+      <ul id="briefObj" class="obj"></ul>
+      <div class="menu">
+        <button id="briefGo" class="primary">Inizia la missione</button>
+        <button id="briefBack">Indietro</button>
+      </div>
+    </div>
+  </section>
+
   <!-- Pausa -->
   <section id="pause" class="screen" hidden>
     <div class="card small">
@@ -110,6 +137,7 @@
       <h2 id="overTitle"></h2>
       <p id="overText"></p>
       <div class="menu">
+        <button id="nextMission" class="primary" hidden>Missione successiva</button>
         <button id="again" class="primary">Rigioca</button>
         <button id="toMenu">Menu</button>
       </div>

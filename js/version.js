@@ -12,9 +12,25 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.8.0';
+export const VERSION = 'V.0.9.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.9.0',
+    date: '2026-11-25',
+    title: 'Prima campagna',
+    changes: [
+      'Arriva la campagna: La Guerra della Corona, cinque missioni con gli Uomini di Pietrabianca (dal menu, pulsante Campagna)',
+      '1 · Il Villaggio di Confine (Valle di Mezzo): fai crescere il borgo e respingi tre razzie dell\'Ombra',
+      '2 · Le Rovine dei Lupi (Foreste Antiche): Seconda Era, chiama il Re Ramingo, libera le rovine e ingaggia Bjarn',
+      '3 · I Picchi delle Aquile (Monti Grigi): alleati con le Aquile e distruggi l\'avamposto dell\'Ombra',
+      '4 · Il Drago del Nord (Terre Gelide): abbatti il Drago e prendi la Corona d\'Ombra',
+      '5 · La Fenditura di Fuoco (Lande Bruciate): porta la Corona alla Fenditura e distruggila',
+      'Ogni missione ha la sua mappa fissa, un racconto prima di iniziare e gli obiettivi sempre visibili in alto a sinistra (tocca per ridurli)',
+      'Le missioni si sbloccano una dopo l\'altra e i progressi restano salvati; a fine missione c\'è il pulsante Missione successiva',
+      'Nelle missioni si vince con gli obiettivi: distruggere la base nemica da solo non basta',
+    ],
+  },
   {
     version: 'V.0.8.0',
     date: '2026-11-25',

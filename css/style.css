@@ -250,3 +250,23 @@ small .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 1px;
 /* coda multipla e continuo (V.0.7.1) */
 .cmds button.on { border-color: #7dff7d; background: #1f3320; }
 .cmds button.small[data-cmd^="five-"] { font-weight: bold; color: var(--gold); }
+
+/* campagna (V.0.9.0) */
+.missions { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; text-align: left; }
+.missions button { display: flex; gap: 10px; align-items: center; padding: 10px 12px; background: rgba(40,32,22,.85); border: 1px solid var(--edge); border-radius: 8px; text-align: left; }
+.missions button:disabled { opacity: .45; cursor: not-allowed; }
+.missions button .n { font-family: var(--font); font-size: 22px; color: var(--gold); width: 28px; text-align: center; flex: none; }
+.missions button b { display: block; font-family: var(--font); font-weight: normal; font-size: 17px; }
+.missions button small { color: var(--muted); }
+.missions button .st { margin-left: auto; flex: none; }
+.brief p { text-align: left; line-height: 1.5; margin: 8px 0; }
+#briefing h3 { font-family: var(--font); font-weight: normal; color: var(--gold); margin: 14px 0 4px; text-align: left; }
+ul.obj, #objList { list-style: none; padding: 0; margin: 0; text-align: left; }
+ul.obj li, #objList li { padding: 3px 0 3px 22px; position: relative; }
+ul.obj li::before, #objList li::before { content: '◇'; position: absolute; left: 2px; color: var(--gold); }
+#objList li.done { color: var(--muted); text-decoration: line-through; }
+#objList li.done::before { content: '✓'; text-decoration: none; color: #7fd36b; }
+#objBox { position: fixed; left: 10px; top: 54px; z-index: 5; max-width: min(300px, 60vw); background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 8px 10px; font-size: 13px; cursor: pointer; }
+#objBox b { font-family: var(--font); font-weight: normal; color: var(--gold); font-size: 15px; }
+#objBox.min #objList { display: none; }
+@media (max-width: 720px) { #objBox { top: 100px; font-size: 11px; padding: 6px 8px; } #objBox b { font-size: 13px; } }

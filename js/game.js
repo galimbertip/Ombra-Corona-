@@ -5,6 +5,7 @@ import { buildWorld, findPath, hideNode, makeRng } from './world.js';
 import { Territory, BONUS } from './territory.js';
 import { Seasons, UPKEEP_EVERY } from './seasons.js';
 import { pickMap } from './maps.js';
+import { Mission } from './campaign.js';
 import { placeSites, spawnGuardians, createCrown, updateWild, onKilled, siteOf } from './creatures.js';
 import { Unit, Building } from './entities.js';
 import * as THREE from '../lib/three.module.js';
@@ -34,16 +35,19 @@ export function reach(u, t) {
 }
 
 export class Game {
-  constructor(scene, { seed = Math.floor(Math.random() * 1e6), difficulty = 'normal', player = 'men', enemy = null, map = 'valle' } = {}) {
+  constructor(scene, { seed = Math.floor(Math.random() * 1e6), difficulty = 'normal', player = 'men', enemy = null, map = 'valle', mission = null } = {}) {
+    // missione della campagna (V.0.9.0): mappa, seme, avversario e difficoltà vengono da lei
+    if (mission) { seed = mission.seed; difficulty = mission.difficulty || difficulty; enemy = mission.enemy; map = mission.map; }
+    this.missionDef = mission;
     this.scene = scene;
     this.seed = seed;
     this.difficulty = difficulty;
     this.player = player;
     this.enemy = enemy && enemy !== player ? enemy : (player === 'shadow' ? 'men' : 'shadow');
-    this.map = pickMap(map, () => (seed % 997) / 997);
+    this.map = { ...pickMap(map, () => (seed % 997) / 997), ...(mission?.mapOverrides || {}) };
     this.time = 0;
     this.over = null;              // 'win' | 'lose'
-    this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [], season: [], territory: [], alarm: [], site: [] };
+    this.listeners = { message: [], over: [], died: [], era: [], level: [], ability: [], season: [], territory: [], alarm: [], site: [], objectives: [] };
     const w = buildWorld(scene, seed, this.map, [this.player, this.enemy]);
     this.grid = w.grid; this.nodes = w.nodes; this.ground = w.ground;
     this.bases = w.bases; this.groundCanvas = w.groundCanvas;
@@ -65,6 +69,7 @@ export class Game {
     }
     spawnGuardians(this);
     this.crown = createCrown(this);
+    this.mission = mission ? new Mission(mission, this) : null;
   }
 
   on(ev, fn) { this.listeners[ev].push(fn); }
@@ -483,7 +488,11 @@ export class Game {
       this.grid.release(e.cx, e.cz, e.size, e.size);
       if (e.type === 'tc') {
         const others = this.buildings.some(b => b.alive && b.faction === e.faction && b.type === 'tc');
-        if (!others) this.finish(e.faction === this.player ? 'lose' : 'win');
+        if (!others) {
+          // nelle missioni della campagna si vince con gli obiettivi: distruggere la base nemica non basta (V.0.9.0)
+          if (e.faction !== this.player && this.mission && !this.mission.def.conquest) this.emit('alarm', 'La base nemica è caduta!', 'Ora completa gli obiettivi della missione');
+          else this.finish(e.faction === this.player ? 'lose' : 'win');
+        }
       }
     }
     this.emit('died', e);
@@ -507,6 +516,7 @@ export class Game {
   update(dt) {
     if (this.over) return;
     this.time += dt;
+    this.mission?.update(dt);
 
     // stagioni e consumo di cibo d'inverno
     const ns = this.seasons.update(dt);

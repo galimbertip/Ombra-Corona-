@@ -1,6 +1,6 @@
 # Ombra & Corona · GPverse
 
-**Versione corrente: V.0.8.0 (Ambientazioni)** · [Storia delle versioni](CHANGELOG.md) · [Documento di design](docs/GDD.md)
+**Versione corrente: V.0.9.0 (Prima campagna)** · [Storia delle versioni](CHANGELOG.md) · [Documento di design](docs/GDD.md)
 
 RTS 3D leggero nel browser, in un mondo fantasy dal sapore tolkieniano con nomi originali.
 Il motore viene da *Age of Empires*, gli eroi da *Warcraft III*, i territori e le stagioni da *Northgard*.
@@ -42,6 +42,7 @@ js/ai.js          IA nemica (gioca la fazione che non hai scelto)
 js/maps.js        ambientazioni (terreno, luce, stagioni, creature): per aggiungerne una basta una voce nuova
 js/territory.js   regioni, confini, colonizzazione e bonus
 js/seasons.js     ciclo delle stagioni e inverno
+js/campaign.js    campagne e missioni: racconto, obiettivi, razzie
 js/creatures.js   creature, luoghi della mappa, Bjarn, aquile e Corona d'Ombra
 js/main.js        camera, input PC/touch, HUD, minimappa, schermate
 js/assets.js      caricamento della grafica e creazione degli sprite
