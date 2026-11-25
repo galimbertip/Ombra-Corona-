@@ -994,10 +994,17 @@ function renderObjectives() {
   $('#objList').innerHTML = game.mission.objectives.map(o => `<li class="${o.done ? 'done' : ''}">${o.text}${o.optional ? ' <small>(facoltativo)</small>' : ''}</li>`).join('');
 }
 $('#objBox').onclick = () => $('#objBox').classList.toggle('min');
-function showCampaign(id = 'men') {
+let campId = 'men';
+function showCampaign(id = campId) {
+  campId = id; progress.lastCamp = id; saveProgress(progress);
   const c = CAMPAIGNS[id], done = progress.campaign?.[id] || 0;
+  // una scheda per popolo, con quante missioni sono state completate (V.0.10.0)
+  $('#campTabs').innerHTML = Object.entries(CAMPAIGNS).map(([k, cc]) => `
+    <button data-c="${k}" class="${k === id ? 'on' : ''}" style="--fc:#${FACTIONS[k].color.toString(16).padStart(6, '0')}">
+      <img src="${url(`unit_${k}_hero`)}" alt=""><small>${progress.campaign?.[k] || 0}/${cc.missions.length}</small>
+    </button>`).join('');
   $('#campTitle').textContent = c.name;
-  $('#campDesc').textContent = c.desc;
+  $('#campDesc').textContent = `${FACTIONS[id].name} · ${c.desc}`;
   $('#missionList').innerHTML = c.missions.map((m, i) => `
     <button data-m="${m.id}" ${i > done ? 'disabled' : ''}>
       <span class="n">${i + 1}</span><span><b>${m.title}</b><small>${m.place}</small></span>
@@ -1015,10 +1022,11 @@ function showBriefing(mission) {
   $('#briefObj').innerHTML = mission.objectives.map(o => `<li>${o.text}</li>`).join('');
   $('#campaign').hidden = true; $('#briefing').hidden = false;
 }
-$('#campBtn').onclick = () => showCampaign('men');
+$('#campBtn').onclick = () => showCampaign(progress.lastCamp || 'men');
+$('#campTabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-c]'); if (b) showCampaign(b.dataset.c); });
 $('#campBack').onclick = () => { $('#campaign').hidden = true; $('#start').hidden = false; };
 $('#missionList').addEventListener('click', ev => { const b = ev.target.closest('button[data-m]'); if (b && !b.disabled) showBriefing(findMission(b.dataset.m).mission); });
-$('#briefBack').onclick = () => showCampaign('men');
+$('#briefBack').onclick = () => showCampaign();
 $('#briefGo').onclick = () => { $('#briefing').hidden = true; startGame(briefed); };
 $('#nextMission').onclick = () => {
   const { campaign, index } = findMission(currentMission.id);

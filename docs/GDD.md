@@ -86,6 +86,6 @@ Le razze generiche (elfi, nani, orchi, troll, draghi) restano tali.
 7. **V.0.7.0 — Creature e Corona:** creature e luoghi neutrali, Bjarn, aquile, Flagello, Corona d'Ombra con corruzione e vittorie alternative ✅
 8. **V.0.8.0 — Ambientazioni:** sei ambientazioni (Valle di Mezzo, Foreste Antiche, Terre Aperte, Monti Grigi, Lande Bruciate, Terre Gelide), ognuna con terreno, luce, stagioni, creature e luoghi propri ✅
 9. **V.0.9.0 — Prima campagna:** La Guerra della Corona, cinque missioni con gli Uomini su mappe fisse, obiettivi e razzie ✅
-10. **V.0.10.0 — Campagne di Elfi, Nani e Ombra** e mappe disegnate a mano
-11. **V.0.11.0 — Rifinitura** (bilanciamento, IA, suoni)
+10. **V.0.10.0 — Quattro campagne:** Elfi, Nani e Ombra, quattro missioni ciascuno (17 missioni in tutto) ✅
+11. **V.0.11.0 — Rifinitura:** bilanciamento delle missioni, IA, suoni e musica, mappe disegnate a mano
 12. **V.1.0.0 — Uscita** su GitHub Pages e nella Sala Giochi Arcade

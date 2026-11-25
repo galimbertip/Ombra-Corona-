@@ -12,7 +12,7 @@
   <!-- Versione della build: va aggiornata insieme a js/version.js. Serve a non far mescolare
        al browser file vecchi e nuovi dopo un aggiornamento (GitHub Pages tiene i file in cache). -->
   <script>
-    window.BUILD = 'V.0.9.0';
+    window.BUILD = 'V.0.10.0';
     (function () {
       var v = '?v=' + window.BUILD;
       var mods = ['main', 'version', 'config', 'assets', 'world', 'entities', 'game', 'ai', 'maps', 'territory', 'seasons', 'creatures', 'campaign'];
@@ -70,7 +70,7 @@
       <p class="tag">Uomini, Elfi, Nani e l'Ombra si contendono il Mondo di Mezzo</p>
       <div class="menu">
         <button id="play" class="primary">Partita libera</button>
-        <button id="campBtn" disabled>Campagna <small>La Guerra della Corona · Uomini</small></button>
+        <button id="campBtn" disabled>Campagna <small>Quattro popoli · 17 missioni</small></button>
         <div id="factionPick" class="faction-pick"></div>
         <label>Avversario
           <select id="enemySel"></select>
@@ -97,6 +97,7 @@
   <section id="campaign" class="screen" hidden>
     <div class="card">
       <p class="brand">Campagna</p>
+      <div id="campTabs" class="camp-tabs"></div>
       <h2 id="campTitle"></h2>
       <p id="campDesc" class="map-desc"></p>
       <div id="missionList" class="missions"></div>

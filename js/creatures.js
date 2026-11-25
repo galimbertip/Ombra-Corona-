@@ -263,6 +263,8 @@ function corrupt(game, h) {
   game.emit('alarm', `${n[0].toUpperCase() + n.slice(1)} ${f === 'elves' ? 'è stata corrotta' : 'è stato corrotto'} dalla Corona!`, 'Ora combatte contro tutti. Si può evocare un nuovo eroe dal centro.');
 }
 export function onKilled(game, e) {
+  // conto delle creature abbattute (serve agli obiettivi delle missioni, V.0.10.0)
+  if (e.faction === NEUTRAL && e.kind !== 'building') { game.slain = game.slain || {}; game.slain[e.type] = (game.slain[e.type] || 0) + 1; }
   if (game.crown?.holder === e) dropCrown(game, e.x, e.z);
   if (e.type === 'dragon' && e.faction === NEUTRAL) game.emit('alarm', 'Il Drago è stato abbattuto!', 'Il tesoro della sua tana aspetta il primo che arriva');
   if (e.type === 'flame') game.emit('alarm', 'Il Flagello di Fiamma è stato sconfitto!', '');

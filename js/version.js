@@ -12,9 +12,22 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.9.0';
+export const VERSION = 'V.0.10.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.10.0',
+    date: '2026-11-25',
+    title: 'Quattro campagne',
+    changes: [
+      'Arrivano le campagne di Elfi, Nani e Ombra: in tutto quattro campagne e 17 missioni, scelte con le schede dei quattro popoli',
+      'Il Canto del Bosco d\'Oro (Elfi): Le Radici Malate · La Signora del Bosco · Il Drago dell\'Inverno · L\'Ultima Luce',
+      'Il Martello di Khazrun (Nani): Le Porte di Pietra · I Troll delle Caverne · Il Risveglio (contro il Flagello di Fiamma) · Il Re sotto la Montagna',
+      'L\'Ascesa dell\'Ombra (Ombra): Le Fosse della Terra Cinerea · Il Bianco Traditore · Il Bosco d\'Oro Brucia · Il Dominio (vinci tenendo la Corona)',
+      'Nuovi obiettivi: territori da possedere, tesori da prendere, creature da abbattere, oro da estrarre dalla Miniera Profonda, sopravvivere all\'inverno',
+      'Ogni scheda mostra quante missioni di quel popolo hai completato',
+    ],
+  },
   {
     version: 'V.0.9.0',
     date: '2026-11-25',

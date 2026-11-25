@@ -10,6 +10,14 @@ A ogni rilascio aggiorna **entrambi**, più `window.BUILD` in `index.html`.
 
 ---
 
+## V.0.10.0 — Quattro campagne · 2026-11-25
+- Arrivano le campagne di Elfi, Nani e Ombra: in tutto quattro campagne e 17 missioni, scelte con le schede dei quattro popoli
+- Il Canto del Bosco d'Oro (Elfi): Le Radici Malate · La Signora del Bosco · Il Drago dell'Inverno · L'Ultima Luce
+- Il Martello di Khazrun (Nani): Le Porte di Pietra · I Troll delle Caverne · Il Risveglio (contro il Flagello di Fiamma) · Il Re sotto la Montagna
+- L'Ascesa dell'Ombra (Ombra): Le Fosse della Terra Cinerea · Il Bianco Traditore · Il Bosco d'Oro Brucia · Il Dominio (vinci tenendo la Corona)
+- Nuovi obiettivi: territori da possedere, tesori da prendere, creature da abbattere, oro da estrarre dalla Miniera Profonda, sopravvivere all'inverno
+- Ogni scheda mostra quante missioni di quel popolo hai completato
+
 ## V.0.9.0 — Prima campagna · 2026-11-25
 - Arriva la campagna: La Guerra della Corona, cinque missioni con gli Uomini di Pietrabianca (dal menu, pulsante Campagna)
 - 1 · Il Villaggio di Confine (Valle di Mezzo): fai crescere il borgo e respingi tre razzie dell'Ombra

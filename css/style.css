@@ -270,3 +270,10 @@ ul.obj li::before, #objList li::before { content: '◇'; position: absolute; lef
 #objBox b { font-family: var(--font); font-weight: normal; color: var(--gold); font-size: 15px; }
 #objBox.min #objList { display: none; }
 @media (max-width: 720px) { #objBox { top: 100px; font-size: 11px; padding: 6px 8px; } #objBox b { font-size: 13px; } }
+
+/* schede delle campagne (V.0.10.0) */
+.camp-tabs { display: flex; gap: 8px; justify-content: center; margin: 6px 0 4px; }
+.camp-tabs button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; background: rgba(40,32,22,.85); border: 2px solid transparent; border-radius: 8px; }
+.camp-tabs button.on { border-color: var(--fc); background: rgba(70,56,30,.9); }
+.camp-tabs img { height: 48px; }
+.camp-tabs small { color: var(--muted); font-size: 11px; }
