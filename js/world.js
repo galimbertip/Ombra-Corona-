@@ -166,15 +166,15 @@ function tileCanvas(image, tile) {
 }
 
 // terreno dipinto: prato, cenere intorno all'Ombra, terra battuta intorno alle basi
-function paintGround(rng, bases) {
+function paintGround(rng, bases, look = {}) {
   const size = MAP_SIZE * PX;
   const c = document.createElement('canvas'); c.width = c.height = size;
   const g = c.getContext('2d');
   const noise = Array.from({ length: 12 }, () => ({ x: rng() * MAP_SIZE, z: rng() * MAP_SIZE, r: 3 + rng() * 6 }));
-  g.drawImage(layer(size, tex.ground_grass.image, 8 * PX), 0, 0);
+  g.drawImage(layer(size, tex['ground_' + (look.base || 'grass')].image, 8 * PX), 0, 0);
   // la cenere segue l'Ombra (se c'è in partita)
   const sh = bases.shadow || { x: -999, z: -999 }, mn = Object.entries(bases).find(([f]) => f !== 'shadow')[1];
-  const ash = !bases.shadow ? () => 0 : (x, z) => {
+  const ash = !bases.shadow || look.base === 'ash' ? () => 0 : (x, z) => {
     const ds = Math.hypot(x - sh.x - 1.5, z - sh.z - 1.5), dm = Math.hypot(x - mn.x - 1.5, z - mn.z - 1.5);
     const t = dm / (dm + ds + 0.001);                 // 0 vicino agli Uomini, 1 vicino all'Ombra
     return (t - 0.45) * 3 + (ds < 18 ? (18 - ds) / 10 : 0) + Math.sin(x * 0.4) * Math.cos(z * 0.3) * 0.15;
@@ -183,7 +183,8 @@ function paintGround(rng, bases) {
   const dirt = (x, z) => {
     let v = 0;
     for (const b of Object.values(bases)) { const d = Math.hypot(x - b.x - 1.5, z - b.z - 1.5); v = Math.max(v, (5.5 - d) / 2.5); }
-    for (const n of noise) { const d = Math.hypot(x - n.x, z - n.z); v = Math.max(v, (n.r * 0.35 - d) / n.r * 0.8); }
+    const k = look.dirt ?? 1;
+    for (const n of noise) { const d = Math.hypot(x - n.x, z - n.z); v = Math.max(v, (n.r * 0.35 * k - d) / n.r * 0.8); }
     return v;
   };
   g.drawImage(layer(size, tex.ground_dirt.image, 6 * PX, maskCanvas(dirt)), 0, 0);
@@ -196,6 +197,7 @@ function paintGround(rng, bases) {
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2);
   }
+  if (look.tint) { g.fillStyle = look.tint; g.fillRect(0, 0, size, size); }
   g.strokeStyle = 'rgba(20,25,10,0.5)'; g.lineWidth = PX; g.strokeRect(0, 0, size, size);
   return c;
 }
@@ -275,6 +277,21 @@ export function buildWorld(scene, seed, mapDef, factions = ['men', 'shadow']) {
       }
     }
   }
+  // creste di roccia (Monti Grigi, V.0.8.0): file di pietre con qualche varco
+  const R = mapDef.ridges;
+  for (let r = 0; R && r < R.count; r++) {
+    for (let t = 0; t < 30; t++) {
+      let x = 4 + rng() * (MAP_SIZE - 8), z = 4 + rng() * (MAP_SIZE - 8);
+      if (nearBase(x, z, 12)) continue;
+      const a = rng() * Math.PI, len = R.min + Math.floor(rng() * (R.max - R.min));
+      for (let k = 0; k < len; k++) {
+        if (nearBase(x, z, 9)) break;
+        if (rng() > 0.12) { addNode('stone', Math.round(x), Math.round(z)); if (rng() < 0.5) addNode('stone', Math.round(x + Math.sin(a)), Math.round(z - Math.cos(a))); }
+        x += Math.cos(a + (rng() - 0.5) * 0.6); z += Math.sin(a + (rng() - 0.5) * 0.6);
+      }
+      break;
+    }
+  }
   // le due basi devono potersi raggiungere: se un bosco le separa, apro un sentiero
   const [b1, b2] = Object.values(bases);
   const goal = { x0: b2.x, z0: b2.z, x1: b2.x + 2, z1: b2.z + 2 };
@@ -289,7 +306,7 @@ export function buildWorld(scene, seed, mapDef, factions = ['men', 'shadow']) {
     }
   }
 
-  const groundCanvas = paintGround(rng, bases);
+  const groundCanvas = paintGround(rng, bases, mapDef.ground || {});
   const groundTex = new THREE.CanvasTexture(groundCanvas);
   groundTex.colorSpace = THREE.SRGBColorSpace;
   groundTex.anisotropy = 8;
@@ -301,13 +318,13 @@ export function buildWorld(scene, seed, mapDef, factions = ['men', 'shadow']) {
   scene.add(ground);
 
   // terre selvagge oltre il bordo: prato più scuro
-  const wildTex = tex.ground_grass.clone();
+  const wildTex = tex['ground_' + (mapDef.ground?.base || 'grass')].clone();
   wildTex.wrapS = wildTex.wrapT = THREE.RepeatWrapping;
   wildTex.repeat.set(30, 30);
   wildTex.needsUpdate = true;
   const wild = new THREE.Mesh(
     new THREE.PlaneGeometry(240, 240).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ map: wildTex, color: 0x4a5a40 })
+    new THREE.MeshBasicMaterial({ map: wildTex, color: mapDef.wild ?? 0x4a5a40 })
   );
   wild.position.set(MAP_SIZE / 2, -0.05, MAP_SIZE / 2);
   scene.add(wild);

@@ -68,17 +68,19 @@ export function placeSites(game, rng) {
   const flip = rng() < 0.5 ? 1 : -1;
   // luoghi singoli sulla linea a metà strada tra le basi (stessa distanza da entrambe)
   // Corona e Fenditura agli estremi opposti: portarla a destinazione è un viaggio lungo
+  const map = game.map || {};
+  const SLOT = { lair: 22, eagle_nest: -8, bear_hut: 15, deep_mine: -15 };
   place('crown', at(0, 8 * flip));
   place('rift', at(0, -23 * flip));
-  place('lair', at(0, 22 * flip));
-  place('eagle_nest', at(0, -8 * flip));
-  place('bear_hut', at(0, 15 * flip));
-  place('deep_mine', at(0, -15 * flip));
+  // il resto dipende dall'ambientazione (V.0.8.0)
+  for (const type of map.sites || Object.keys(SLOT)) if (SLOT[type] != null) place(type, at(0, SLOT[type] * flip));
   // a coppie, specchiate (una per base) e tutte dal lato della Corona e del drago:
   // dal lato della Miniera e della Fenditura la strada resta libera da creature
-  for (const [type, e, d] of [['ruins', 8, 13], ['troll_cave', 13, 19]]) {
+  const PAIR_SLOTS = [[8, 13], [13, 19]];
+  (map.pairs || ['ruins', 'troll_cave']).slice(0, 2).forEach((type, i) => {
+    const [e, d] = PAIR_SLOTS[i];
     place(type, at(e, d * flip)); place(type, at(-e, d * flip));
-  }
+  });
   game.nodes = game.nodes.filter(n => n.alive);
   for (const s of sites) {
     if (s.type === 'deep_mine') { s.res = 'gold'; s.mined = 0; }
@@ -102,10 +104,12 @@ export function spawnGuardians(game) {
       s.guards.push(u);
     }
   }
-  // un branco di lupi che vaga al centro della mappa
-  for (let i = 0; i < 2; i++) {
-    const c = game.grid.nearestFree(MAP_SIZE / 2 + i, MAP_SIZE / 2 + (i % 2) * 2);
-    if (c) { const u = spawnCreature(game, 'wolf', NEUTRAL, c.x + 0.5, c.z + 0.5); u.home = { x: MAP_SIZE / 2, z: MAP_SIZE / 2 }; u.roam = true; }
+  // creature che vagano al centro della mappa: dipendono dall'ambientazione
+  const roam = game.map?.roam || { wolf: 2 };
+  let i = 0;
+  for (const [type, n] of Object.entries(roam)) for (let k = 0; k < n; k++, i++) {
+    const c = game.grid.nearestFree(MAP_SIZE / 2 + (i % 3) - 1, MAP_SIZE / 2 + Math.floor(i / 3) * 2);
+    if (c) { const u = spawnCreature(game, type, NEUTRAL, c.x + 0.5, c.z + 0.5); u.home = { x: MAP_SIZE / 2, z: MAP_SIZE / 2 }; u.roam = true; }
   }
 }
 

@@ -49,7 +49,7 @@ export class Game {
     this.bases = w.bases; this.groundCanvas = w.groundCanvas;
     this.sites = placeSites(this, makeRng(seed + 11));   // tane, rovine, Corona... (V.0.7.0)
     this.territory = new Territory(scene, makeRng(seed + 7), this.nodes, this.bases);
-    this.seasons = new Seasons();
+    this.seasons = new Seasons(this.map.seasons);
     this.upkeepT = 0;
     this.units = []; this.buildings = []; this.arrows = [];
     this.players = {};

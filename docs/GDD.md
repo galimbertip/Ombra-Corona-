@@ -84,6 +84,7 @@ Le razze generiche (elfi, nani, orchi, troll, draghi) restano tali.
 6. **V.0.6.0 — Quattro fazioni:** arrivano Elfi e Nani, con stili di gioco diversi ✅
 6b. **V.0.6.1 — Camera:** rotazione della visuale a scatti di 90° (tasti Q/E e pulsanti), spostamento col mouse tenendo premuto il tasto destro (o spazio + tasto sinistro), oltre a quello già presente col tasto centrale ✅
 7. **V.0.7.0 — Creature e Corona:** creature e luoghi neutrali, Bjarn, aquile, Flagello, Corona d'Ombra con corruzione e vittorie alternative ✅
-8. **V.0.8.0 — Prima campagna** (Uomini) e mappe disegnate a mano
-9. **V.0.9.0 — Campagne complete e rifinitura**
-10. **V.1.0.0 — Uscita** su GitHub Pages e nella Sala Giochi Arcade
+8. **V.0.8.0 — Ambientazioni:** sei ambientazioni (Valle di Mezzo, Foreste Antiche, Terre Aperte, Monti Grigi, Lande Bruciate, Terre Gelide), ognuna con terreno, luce, stagioni, creature e luoghi propri ✅
+9. **V.0.9.0 — Prima campagna** (Uomini) e mappe disegnate a mano
+10. **V.0.10.0 — Campagne complete e rifinitura**
+11. **V.1.0.0 — Uscita** su GitHub Pages e nella Sala Giochi Arcade

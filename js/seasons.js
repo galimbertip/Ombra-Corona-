@@ -15,15 +15,19 @@ export const SEASONS = [
 export const UPKEEP_EVERY = 15; // secondi: ogni unità mangia 1 cibo
 
 export class Seasons {
-  constructor() { this.i = 0; this.t = 0; this.year = 1; }
-  get current() { return SEASONS[this.i]; }
+  // mods.len: durata delle stagioni per ambientazione (es. Terre Gelide: inverno lungo) — V.0.8.0
+  constructor(mods = {}) {
+    this.i = 0; this.t = 0; this.year = 1;
+    this.list = SEASONS.map(se => ({ ...se, len: Math.round(se.len * (mods.len?.[se.id] ?? 1)) }));
+  }
+  get current() { return this.list[this.i]; }
   get left() { return Math.max(0, this.current.len - this.t); }
   // avanza il tempo; restituisce la nuova stagione quando cambia
   update(dt) {
     this.t += dt;
     if (this.t < this.current.len) return null;
     this.t -= this.current.len;
-    this.i = (this.i + 1) % SEASONS.length;
+    this.i = (this.i + 1) % this.list.length;
     if (this.i === 0) this.year++;
     return this.current;
   }

@@ -12,9 +12,23 @@
 
 export const GAME_TITLE = 'Ombra & Corona';
 export const BRAND = 'GPverse';
-export const VERSION = 'V.0.7.2';
+export const VERSION = 'V.0.8.0';
 
 export const HISTORY = [
+  {
+    version: 'V.0.8.0',
+    date: '2026-11-25',
+    title: 'Ambientazioni',
+    changes: [
+      'Ogni ambientazione ha le sue creature e i suoi luoghi, invece di tutti in ogni mappa: Corona e Fenditura ci sono sempre, il resto cambia',
+      'Valle di Mezzo: lupi nelle rovine, Bjarn e le Aquile · Foreste Antiche: tanti branchi di lupi e Bjarn · Terre Aperte: troll, Aquile e Miniera Profonda',
+      'Nuova ambientazione Monti Grigi: terra e roccia, creste di pietra con valichi stretti, molto oro; troll nelle grotte, il Drago e la Miniera Profonda',
+      'Nuova ambientazione Lande Bruciate: tutto cenere, pochi alberi e poco cibo, molto oro; il Drago e la Miniera Profonda',
+      'Nuova ambientazione Terre Gelide: il Nord, con inverni quasi doppi ed estati corte, un velo di neve tutto l\'anno; lupi, troll, Bjarn e le Aquile',
+      'Ogni ambientazione ha la sua luce e il suo terreno, che si sommano ai colori delle stagioni',
+      'Roadmap: la prima campagna si sposta alla V.0.9.0',
+    ],
+  },
   {
     version: 'V.0.7.2',
     date: '2026-11-24',

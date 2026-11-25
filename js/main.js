@@ -728,8 +728,9 @@ function updateWeather(dt) {
   const winter = se.id === 'winter';
   // la neve arriva e se ne va piano
   const k = Math.min(1, dt * 1.0);
-  weather.snow.material.opacity += ((winter ? 0.38 : 0) - weather.snow.material.opacity) * k;
-  weather.flakes.material.opacity += ((winter ? 0.85 : 0) - weather.flakes.material.opacity) * k;
+  const snowBase = game.map.seasons?.snow || 0;   // Terre Gelide: un velo di neve tutto l'anno
+  weather.snow.material.opacity += ((winter ? 0.38 + snowBase : snowBase) - weather.snow.material.opacity) * k;
+  weather.flakes.material.opacity += ((winter ? 0.85 : snowBase ? 0.3 : 0) - weather.flakes.material.opacity) * k;
   weather.flakes.visible = weather.flakes.material.opacity > 0.02;
   if (weather.flakes.visible) {
     const a = weather.flakes.geometry.attributes.position;
@@ -741,7 +742,7 @@ function updateWeather(dt) {
     a.needsUpdate = true;
     weather.flakes.position.set(cam.tx, 0, cam.tz);
   }
-  weather.target.setRGB(...se.tint);
+  weather.target.setRGB(...se.tint.map((v, i) => v * (game.map.tint?.[i] ?? 1)));
   TINT.lerp(weather.target, k);
   applyTint();
   for (const b of game.buildings) { b.sprite.material.color.copy(TINT); }
@@ -844,10 +845,13 @@ $('#historyClose').onclick = () => $('#history').close();
 // ---- schermate --------------------------------------------------------------------------
 document.title = `${GAME_TITLE} · ${BRAND} ${VERSION}`;
 // file vecchi in cache? ricarico una volta la pagina saltando la cache
-if (window.BUILD && window.BUILD !== VERSION && !sessionStorage.getItem('reloaded-' + VERSION)) {
-  sessionStorage.setItem('reloaded-' + VERSION, '1');
-  location.replace(location.pathname + '?r=' + Date.now());
-}
+// (in try: in alcune pagine incorporate, come l'artifact di Claude, sessionStorage non è disponibile)
+try {
+  if (window.BUILD && window.BUILD !== VERSION && !sessionStorage.getItem('reloaded-' + VERSION)) {
+    sessionStorage.setItem('reloaded-' + VERSION, '1');
+    location.replace(location.pathname + '?r=' + Date.now());
+  }
+} catch (e) { /* niente ricarica */ }
 function renderStats() {
   const p = progress;
   $('#stats').textContent = p.games
